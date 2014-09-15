@@ -1,0 +1,494 @@
+#!/usr/bin/perl
+#
+#
+#   Simple workflow engine supported commands:
+#   submit
+#   get 
+#   wait 
+#
+#
+#
+#
+#
+
+use strict;
+use File::Basename;
+use Digest::MD5 qw(md5 md5_hex md5_base64);
+use Cwd 'abs_path';
+#use clusterk;
+
+
+my $swe_path=abs_path($0); # path to SWE executable which will be uploaded to task working directory
+
+#because environment is inherited by the task, we need those if we would like to be able to run from MacOS 
+$ENV{TMPDIR}="/tmp";
+$ENV{PATH}.=":/opt/clusterk/bin";
+
+my $command=$ARGV[0];
+
+my $engine=$ENV{SWE_ENGINE} || "local"; # set default execution engine to Local
+die "Incorrect SWE_ENGINE" unless $engine =~/(local|clusterk)/;
+my $verbose=$ENV{SWE_VERBOSE}; # in verbose mode we also print a lot of stuff to STDERR
+my $dev_mode=$ENV{SWE_DEV_MODE}; # in dev mode, if similar task has already been started and succeeded, do not run it, and return previous task ID
+
+
+
+my $workflow_path=$ENV{SWE_LOCAL_ENGINE_PATH} || "/tmp/swe";
+my $S3_PREFIX;
+if ($engine eq "local")
+{
+    #path to use for storing files and creating process working directories
+}
+else
+{
+    $S3_PREFIX=$ENV{SWE_S3_STORAGE} ||die "SWE_S3_STORAGE path must be defined to work on cluster environment";
+}
+
+# swe submit ...parameters...
+# in local mode - we simply create a temp folder in /tmp and execute the command there
+#                 and return task_id _after it succeeded_  
+# in clusterk mode we submit command to ksub.py 
+#                 and return task_id _after it was submitted !, thus proper depencency structure is critical
+# submission is allowed only via --wrap=""
+# example:   
+# $swe submit -d parent_task_id -iinput=value -e 1000 -m 2000 --wrap="pipeline command"
+# 75
+# input are defined as -iname=value, and simply passed as environmental variables with K_ prefix
+#
+#
+my $i;
+if ($command eq "submit")
+{
+    #parse command line to find inputs of the form -iname=value
+    #save them in envoriment variable K_name=value, we can later retrieve them using swe get 
+    my  $cmd_identifier=md5_hex(join(" ",@ARGV));
+
+    for ($i=1; (($i<scalar(@ARGV)) and ($ARGV[$i] !~ "^--wrap"));$i++)
+    {
+        if ($ARGV[$i] =~/^\-i(\S+)=(.*)$/) 
+        {
+                print STDERR "Processing input variable $1=$2\n" if $verbose;
+                $ENV{"K_$1"}=$2 ; 
+                $ARGV[$i]="";
+        };
+    }
+
+    #upload a current version of SWE
+    push(@ARGV,"-u");push(@ARGV,"$swe_path");
+
+    if ($engine eq "local")
+    {
+        my $exe=$ARGV[1];
+
+        if ($dev_mode)
+        {
+            run("mkdir -p $workflow_path/progress");
+           
+            if (-e "$workflow_path/progress/$cmd_identifier")
+            {
+                system("cat $workflow_path/progress/$cmd_identifier");
+                exit(0);
+            }
+        }
+
+        #find unused task ID under $workflow_path
+        my $id;
+        for ($id=1; -e "$workflow_path/$id";$id++) {}
+        #task working directory
+        my $twd="$workflow_path/$id";
+        die "cannot create $twd" if system ("mkdir -p $twd/twd >&2");
+        #parse command line arguments
+        $ENV{CLUSTERK_TASK_ID}=$id;
+     
+
+        #parse file upload request, files can be uploaded using -u :
+        for ($i=1;$i<scalar(@ARGV);$i++)
+        {
+            if ($ARGV[$i] eq "-u") 
+            {
+                my $upload=abs_path($ARGV[$i+1]);              
+                die "$upload not found" unless -e $upload;
+                # "simulate upload"
+                run("cd $twd/twd && ln -s $upload ");
+            }
+        }
+
+        #parse dependencies
+        my $dep_failed=0;
+        for ($i=1;$i<scalar(@ARGV);$i++)
+        {
+            if ($ARGV[$i] eq "-d") 
+            {
+                foreach ( split(",",$ARGV[$i+1]))
+                {
+                    $dep_failed=1 unless -e "$workflow_path/$_/.success";
+                    print STDERR "depencency $_ failed\n";
+                }              
+            }
+        }
+    
+
+
+        my $cmdline;
+        for ($i=1;$i<scalar(@ARGV);$i++)
+        {
+            $cmdline ="./swe init && $1" if ($ARGV[$i] =~ /^--wrap=(.*)$/);
+        }
+        die "cmd line not found, please specify it with --wrap=\"command\" " unless $cmdline;
+
+        print STDERR "will submit: $cmdline\n" if $verbose;
+        if ($dep_failed or system("cd $twd/twd && bash -c \"$cmdline\" >&2"))
+        {
+            print STDERR "Execution failed\n" if $verbose;
+        }
+        else
+        {
+            run("touch $workflow_path/$id/.success");
+            system("echo $id >$workflow_path/progress/$cmd_identifier") if $dev_mode;       
+        }
+        print "$id";
+        exit;
+    }
+
+
+    if ($engine eq "clusterk")
+    {
+
+        if ($dev_mode)
+        {
+            #in dev_mode only return previous task id if it succeeded
+            run("mkdir -p $workflow_path/progress");
+           
+            if (-e "$workflow_path/progress/$cmd_identifier")
+            {
+                my $old_id=`cat $workflow_path/progress/$cmd_identifier`;
+                chomp($old_id);
+                unless (system("kwait.py --task-id $old_id >/dev/null"))
+                {
+                    print $old_id;
+                    exit 0;
+                }
+            }
+        }
+        my $ksub_params="";
+
+        $ksub_params.= " -q $ENV{SWE_QUEUE} " if $ENV{SWE_QUEUE};
+        $ksub_params.= $ENV{SWE_KSUB_EXTRA_PARAMS};
+        
+        for ($i=1;$i<scalar(@ARGV);$i++) 
+        {
+           # die "Visual mode is not supported" if $ARGV[$i] eq "-v";   
+            $ARGV[$i]="--wrap=\" ./swe init && $1\"" if ($ARGV[$i]=~/--wrap=(.*)$/);
+            $ksub_params.= " $ARGV[$i] ";
+        }
+
+        #die $ksub_params;
+
+        my $task_id=`ksub.py $ksub_params` || die "ksub.py $ksub_params failed";
+        chomp $task_id;
+        print "$task_id";
+        system("echo $task_id > $workflow_path/progress/$cmd_identifier") if $dev_mode;
+        exit;
+    }
+
+    die;
+}
+
+
+
+
+if ($command eq "get")
+{
+    print get($ARGV[1]);
+    exit(0);
+}
+
+if ($command eq "init")
+{
+    if ($engine eq "local")
+    {
+
+    }
+    else
+    {
+        die "Some dependencies failed: $ENV{CLUSTERK_FAILED_DEPS}" if $ENV{CLUSTERK_FAILED_DEPS};
+    }
+    exit(0);
+}
+
+
+if ($command eq "wait")
+{
+    if ($engine eq "local")
+    { 
+        unless (-e "$workflow_path/$ARGV[1]/.success")
+        {
+            print STDERR "task $ARGV[1] failed " if $verbose;
+            exit (1);
+        }
+        exit(0); 
+    }
+
+    if ($engine eq "clusterk")
+    { 
+        run ("kwait.py --task-id $ARGV[1]");
+        exit(0);
+    }
+    die;
+}
+
+if ($command eq "list")
+{
+    open(FL,"$workflow_path/$ARGV[1]/output.txt")||die;
+    while (<FL>) {print;}
+    exit(0);
+}
+
+
+
+if ($command eq "fetch")
+{
+    my @local_names=();
+    for ($i=1;$i<scalar(@ARGV);$i++)
+    {
+        push (@local_names,fetch($ARGV[1]));
+    }
+    print join(" ",@local_names);
+    exit(0);
+}
+
+
+
+
+if ($command eq "store")
+{
+
+    print store($ARGV[1]);
+    exit(0);
+}
+
+
+if ($command eq "emit")
+{
+    
+    if ($ARGV[1] eq "variable")
+    {
+        die "not really implemented";
+        print emit($ARGV[1],$ARGV[2], $ARGV[3]);
+        exit(0); 
+    }
+
+    if ($ARGV[1] eq "file")
+    {
+        #print store($ARGV[2])
+        for ($i=2;$i<scalar(@ARGV);$i++)
+        {
+            emit($ARGV[1],$ARGV[$i], store($ARGV[$i]));
+        }
+        exit(0); 
+    }
+
+    die;
+}
+
+# Saves a file to local drive or S3 (in clusterk mode)
+#
+#
+sub store 
+{
+    my $local_file=shift;
+    die "$local_file not found" unless -e "$local_file";
+
+    my $taskid=get_task_id();
+  
+    my $dir=dirname($local_file);
+    $dir="" if $dir eq ".";
+    $dir="/".$dir if $dir;;
+
+    if ($engine eq "local")
+    {
+        my $path;
+        if ($taskid)
+        {
+           $path=$workflow_path."/$taskid".$dir;
+        }
+        else
+        {
+           $path=$workflow_path."/".md5_hex(dirname($local_file));
+        }
+        die if system("mkdir -p $path");
+        die if system("cp $local_file $path/");
+        
+        my $new_path="$path/".basename($local_file);
+        die unless -e $new_path;
+        return $new_path;
+    }
+
+    if ($engine eq "clusterk")
+    {
+        my $s3_path;
+        if ($taskid)
+        {
+            $s3_path=$S3_PREFIX."/$taskid".$dir;
+        }
+        else
+        {
+            $s3_path=$S3_PREFIX."/$taskid/".md5_hex(dirname($local_file));;
+        }
+        run("es3 sync $local_file $s3_path/");
+
+        return "$s3_path/".basename($local_file);
+    }
+
+}
+
+
+
+sub emit 
+{
+    my ($type, $var,$value)=@_;
+    my $taskid=get_task_id();
+    my $value =~s/\n/ /g;
+    die "Cannot obtain task id, when starting outside a task environment please use ./swe store" unless $taskid;
+#    if ($engine eq "local")
+ #   {
+  #      open(OUT,">>$workflow_path/$taskid/output.txt")||die;
+   #     print OUT "$var\t$type\t$value\n";
+    #    close OUT;
+   # }
+}
+
+#fetch a file to local folder, return a local file name
+#files from same path should end up in the same folder: for example  44:out.bam and 44:out.bam.bai, but 45:out.bam should be in a different folder
+sub fetch {
+    my $file = shift;
+    if ($file eq "-") {$file=<STDIN>; chomp($file);}
+
+    if ( ($engine eq "local") and ($file !~/s3:\/\//))
+    {
+
+        my $local_dir;
+        my $remote_name;
+        my $local_name;
+        if ($file=~/^(\d+):(\S+)$/)
+        {
+            my $taskid=$1;
+            my $path=$2;
+
+            my $dir=dirname($path);
+            $dir="" if $dir eq ".";
+            my $s3_path=$workflow_path."/$taskid";
+            $s3_path.="/$dir" if $dir;
+            #$dir="." if $dir eq "";
+            $local_dir="./swe_$taskid";
+            $local_dir.="/dir" if $dir;
+
+            $local_name="$local_dir/".basename($path);
+            $remote_name="$s3_path/".basename($path);
+        }
+        else
+        {
+            my $path=$file;
+            $remote_name=$path;
+            my $dir=dirname($path);
+            $dir="" if $dir eq ".";
+
+            $local_dir="./swe_0";
+            $local_dir.="/$dir" if $dir;
+            $local_name="$local_dir/".basename($path);
+        }
+
+
+        die "$file does not exist" unless -e $remote_name;
+        run("mkdir -p $local_dir");
+        system("rm $local_name ") if -e $local_name;
+        run ("ln -s $remote_name $local_name");
+        die unless -e $local_name;
+        return $local_name;
+    }
+    else
+    {
+        if ($file=~/^(\d+):(\S+)$/)
+        {
+            my $taskid=$1;
+            my $path=$2;
+            # path is relative to the directory
+            my $dir=dirname($path);
+            $dir="" if $dir eq ".";
+            my $s3_path=$S3_PREFIX."/$taskid";
+            $s3_path.="/$dir" if $dir;
+            #$dir="." if $dir eq "";
+            my $local_dir="./swe_$taskid";
+            $local_dir.="/dir" if $dir;
+            run("es3 sync $s3_path/".basename($path)." $local_dir/");
+            return "$local_dir/".basename($path);
+        }
+        else
+        {
+
+            run("es3 sync $file ./".md5_hex(dirname($file))."/");
+            return "./".md5_hex(dirname($file))."/".basename($file);
+        }        
+    }
+}
+
+# get a variable value
+sub get {
+    my $var = shift;
+    if ($var eq "-") {$var=<STDIN>; chomp($var);}
+    if ($var=~/^(\d+):(\S+)$/)
+    {
+        my $taskid=$1;
+        $var=$2;
+        open(FL,"$workflow_path/$taskid/output.txt")||die;
+        while(<FL>)
+        {
+            chomp; 
+            my ($name,$type,$value)=split("\t");
+            next unless $name eq $var;
+            die unless $type eq "variable";
+            close FL;
+            return $value;
+        }
+        die "varible $taskid:$var is not defined";
+    }
+    else
+    {
+        die "$var is not defined " unless $ENV{"K_".$var};
+        return $ENV{"K_".$var};
+    }
+}   
+
+
+
+die "Unsupported command";
+
+sub get_task_id
+{
+     return $ENV{CLUSTERK_TASK_ID}+0;
+}
+
+#Run shell command. If ignore errors enabled, will return success if command succeeded.
+sub run
+{
+
+    my ($cmd, $ignore_errors)=@_;
+    my $time = localtime;
+    print STDERR "run(): $cmd\n" if $verbose;
+
+    my $ret=system("bash","-o","pipefail","-c",$cmd,">&2");
+    if ($ret != 0)
+    {
+        print  STDERR "run():Command ($cmd) failed with exit code $ret ....";
+        if ($ignore_errors)
+        {
+            print  STDERR  "Error ignored !!!\n";
+        }
+        else
+        {
+            print  STDERR  "\n";
+            exit(1);
+        }
+    }
+    return ($ret == 0);
+}

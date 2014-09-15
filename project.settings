@@ -1,0 +1,9 @@
+PIPELINE=exome
+NAME=053
+ALIGNMENT_ALGORITHM=BWA-mem
+INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
+NOVOALIGN_LIC=s3://gapp-west/test@clusterk.com/code_examples
+AWS_S3_ROOT=s3://gapp-west/test@clusterk.com
+SAMPLE_ID=314
+GATK_JAR=s3://gapp-west/test@clusterk.com/GenomeAnalysisTK.jar
+BED_FILTER=s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025.bed
