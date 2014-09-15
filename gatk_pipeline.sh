@@ -18,19 +18,32 @@ BQSR_CHR=chr22
 
 # split input files into chunks
 
+
+#  SWE_ENGINE clusterk or local
 export SWE_ENGINE=clusterk
-export SWE_QUEUE=default
-export SWE_S3_STORAGE=s3://gapp-west/swe-test
+
+
+
+if [ "$SWE_ENGINE" = "clusterk" ]
+then
+    export SWE_QUEUE=default
+    export SWE_S3_STORAGE=s3://gapp-west/swe-test
+    export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 10000 -dm 20000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
+
+else
+
+fi
 
 [ -e bin.tar.gz ] || tar czvf bin.tar.gz ./bin
-export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 10000 -dm 20000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
 
 NAME_PREFIX="Sample:$K_ANALYSIS";
 
+#####################################################################################################
 # Process input files:
 # 1. Split each input file into chunks of 1GB
 # 2. Launch alignment job per each chunk
 # 3. Each alignment will return one sorted file per chromosome, which will later be combined.
+
 
 #list of alignment job IDs
 align_job_ids=""

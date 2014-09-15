@@ -47,7 +47,7 @@ else
 # swe submit ...parameters...
 # in local mode - we simply create a temp folder in /tmp and execute the command there
 #                 and return task_id _after it succeeded_  
-# in clusterk mode we submit command to ksub.py 
+# in clusterk mode we submit command to ksub 
 #                 and return task_id _after it was submitted !, thus proper depencency structure is critical
 # submission is allowed only via --wrap=""
 # example:   
@@ -121,14 +121,17 @@ if ($command eq "submit")
             {
                 foreach ( split(",",$ARGV[$i+1]))
                 {
-                    $dep_failed=1 unless -e "$workflow_path/$_/.success";
-                    print STDERR "depencency $_ failed\n";
+		    unless (-e "$workflow_path/$_/.success")
+		    {
+                	$dep_failed=1 ;
+                	print STDERR "depencency $_ failed\n";
+		    }
                 }              
             }
         }
     
 
-
+	die "Failed dependencies, cannot continue" if $dep_failed;
         my $cmdline;
         for ($i=1;$i<scalar(@ARGV);$i++)
         {
@@ -163,7 +166,7 @@ if ($command eq "submit")
             {
                 my $old_id=`cat $workflow_path/progress/$cmd_identifier`;
                 chomp($old_id);
-                unless (system("kwait.py --task-id $old_id >/dev/null"))
+                unless (system("kwait --task-id $old_id >/dev/null"))
                 {
                     print $old_id;
                     exit 0;
@@ -184,7 +187,7 @@ if ($command eq "submit")
 
         #die $ksub_params;
 
-        my $task_id=`ksub.py $ksub_params` || die "ksub.py $ksub_params failed";
+        my $task_id=`ksub $ksub_params` || die "ksub $ksub_params failed";
         chomp $task_id;
         print "$task_id";
         system("echo $task_id > $workflow_path/progress/$cmd_identifier") if $dev_mode;
@@ -231,7 +234,7 @@ if ($command eq "wait")
 
     if ($engine eq "clusterk")
     { 
-        run ("kwait.py --task-id $ARGV[1]");
+        run ("kwait --task-id $ARGV[1]");
         exit(0);
     }
     die;
@@ -262,8 +265,12 @@ if ($command eq "fetch")
 
 if ($command eq "store")
 {
-
-    print store($ARGV[1]);
+    my @local_names=();
+    for ($i=1;$i<scalar(@ARGV);$i++)
+    {
+        push (@local_names,store($ARGV[1]));
+    }
+    print join(" ",@local_names);
     exit(0);
 }
 
