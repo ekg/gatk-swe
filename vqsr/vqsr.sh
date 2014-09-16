@@ -127,9 +127,7 @@ do
 	-recalFile indels.recal.tmp \
 	-tranchesFile indels.tranches \
 	-rscriptFile indels.plots.R \
-	-nt $cpu_cores 
-
-	mv indels.recal.tmp indels.recal
+	-nt $cpu_cores && mv indels.recal.tmp indels.recal
     fi
 
 done
@@ -154,7 +152,7 @@ java -Xmx7g -jar $gatk_jar \
     -T CombineVariants  \
     -R $gatk_data/hg19/ucsc.hg19.fasta \
     --variant snps.recalibrated.filtered.vcf \
-    --variant indels.recalibrated.filtered.vcf \ 
+    --variant indels.recalibrated.filtered.vcf \
     -o recalibrated.filtered.vcf 
 
 bgzip recalibrated.filtered.vcf

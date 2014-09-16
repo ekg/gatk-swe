@@ -21,5 +21,6 @@ if [ ! -e /tmp/gcat_set_025_2.fastq.gz ]
 then
 wget	-O /tmp/gcat_set_025_1.fastq.gz http://gapp-west.s3.amazonaws.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz
 wget	-O /tmp/gcat_set_025_2.fastq.gz http://gapp-west.s3.amazonaws.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz
+wget	-O /tmp/gcat_set_025.bed.gz     http://gapp-west.s3.amazonaws.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025.bed.gz
 
 fi
