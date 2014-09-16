@@ -3,24 +3,26 @@ set -e -x
 set -o pipefail
 
 . ./project.settings
-INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
+#INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
 GATK_JAR=s3://gapp-west/test@clusterk.com/GenomeAnalysisTK.jar
 
-export K_GATK_DATA=/tmp/gatk-data
-export K_ANALYSIS=exome
-
+export K_GATK_DATA=/tmp/gatk-reference
+export K_ANALYSIS=$K_ANALYSIS
 export GATK_JAR=./bin/GenomeAnalysisTKLite.jar
 export PATH=$PATH:./bin
 
 
 CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
+#CHROMOSOMES="chr22"
+# chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
+
 BQSR_CHR=chr22
 
 # split input files into chunks
 
 
 #  SWE_ENGINE clusterk or local
-export SWE_ENGINE=clusterk
+export SWE_ENGINE=local
 
 
 
@@ -29,8 +31,9 @@ then
     export SWE_QUEUE=default
     export SWE_S3_STORAGE=s3://gapp-west/swe-test
     export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 10000 -dm 20000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
-
 else
+    export SWE_DEV_MODE=1 # cache successfull task IDs
+    export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz "
 
 fi
 
@@ -56,11 +59,19 @@ do
 		 file1=${BASH_REMATCH[1]}
 		 file2=${BASH_REMATCH[2]}
 		 file1_size=$(es3 ls $file1 | head -n 1| cut -f 2)
-		 splits=$[$file1_size/1000000000+1]
+
+	elif [[ $input =~ local\[(.*),(.*)\] ]] ;
+	then
+		file1=$(./swe store ${BASH_REMATCH[1]})
+		file2=$(./swe store ${BASH_REMATCH[2]})
+		file1_size=$(stat -c%s ${BASH_REMATCH[1]})
+	
 	else
 		echo Not implemented
 		false
 	fi
+
+	splits=$[$file1_size/1000000000+1]
 
 	echo Processing $input, will split it in $splits chunks
 
@@ -70,7 +81,8 @@ do
 						 -u split_fastq/split_input_fastq.pl \
 						 -t NAME=$NAME_PREFIX:interleave -t STAGE=interleave\
 						 -isplits=$splits \
-						 -iinput=$input \
+						 -iinput1=$file1 \
+						 -iinput2=$file2 \
 						 --wrap="bash split.sh")
 
 	#align each split, reference them via $split_job_id
@@ -90,7 +102,7 @@ do
 	done
 
 done
-
+#exit 1
 
 ########### GATK  stage
 # 1. combine chromosome files from each alignment job into single BAM file per chromosome
@@ -106,6 +118,12 @@ gatk_splits=10
 
 for chr in $CHROMOSOMES
 do
+	#get chromosome size and compute optimal number of splits
+	
+	chr_size=$(grep "^$chr	" $K_GATK_DATA/hg19/ucsc.hg19.fasta.fai |cut -f 2)
+	gatk_splits=$[$chr_size/10000000]
+	[ "$gatk_splits" != "0" ]
+
 	#create comma separated list of alignment jobs
 	align_job_list=$(echo $align_job_ids |tr " " ",")
 
@@ -179,6 +197,7 @@ do
 	done
 done
 
+#exit 1
 # collect all GATK job ids, and create comma separated list for dependendencies (-d)
 gatk_job_list=$(echo $gatk_job_ids |tr " " ",")
 

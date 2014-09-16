@@ -3,20 +3,13 @@ set -e
 set -x
 set -o pipefail
 
-input=$(./swe get input)
 splits=$(./swe get splits)
 
-if [[ $input =~ paired\[(.*),(.*)\] ]] ;
-    then
-	 file1=$(./swe fetch ${BASH_REMATCH[1]})
-	 file2=$(./swe fetch ${BASH_REMATCH[2]})
-    else
-	echo Not implemented
-	false
-fi
+input1=$(./swe get input1 | ./swe fetch -)
+input2=$(./swe get input2 | ./swe fetch -)
 
 
-./split_input_fastq.pl --input paired[$file1,$file2] --splits $splits
+./split_input_fastq.pl --input paired[$input1,$input2] --splits $splits
 
 for i in $(seq 1 $splits)
 do

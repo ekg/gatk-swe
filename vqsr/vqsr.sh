@@ -103,26 +103,39 @@ fi
 
 
 
-    my $variants = `grep -vPc "\^\#" < indels.raw.vcf`; chomp($variants);
+    variants=$(grep -vPc "\^\#" < indels.raw.vcf)
     echo  "raw.vcf: Total $variants indels found "
+    
 #    die "Not enough variants to run recalibration" if $variants < 3000;
 
-#    foreach my $extra_options ("" , " --maxGaussians 4 "," --maxGaussians 2 ")
-java -Xmx7g  -jar $gatk_jar \
-    -T VariantRecalibrator \
-    -R $gatk_data/hg19/ucsc.hg19.fasta \
-    -input indels.raw.vcf \
-    $indel_annotations \
-    $bad_variants \
-    -resource:mills,VCF,known=false,training=true,truth=true,prior=12.0 $gatk_data/Mills_and_1000G_gold_standard.indels.hg19.vcf.gz \
-    -resource:dbsnp,VCF,known=true,training=false,truth=false,prior=2.0 $gatk_data/dbsnp_137.hg19.vcf.gz \
-    -mode INDEL \
-    -recalFile indels.recal.tmp \
-    -tranchesFile indels.tranches \
-    -rscriptFile indels.plots.R \
-    -nt $cpu_cores
+#try variant recalibration with succesively more relaxed parameters to go around numerical instabilities
+set +e
+for extra_options in " "  " --maxGaussians 4 "  " --maxGaussians 2 "
+do
+    if [ ! -e indels.recal ]
+    then
+    java -Xmx7g  -jar $gatk_jar \
+	-T VariantRecalibrator \
+	-R $gatk_data/hg19/ucsc.hg19.fasta \
+	-input indels.raw.vcf \
+	$indel_annotations \
+	$bad_variants \
+	$extra_options \
+	-resource:mills,VCF,known=false,training=true,truth=true,prior=12.0 $gatk_data/Mills_and_1000G_gold_standard.indels.hg19.vcf.gz \
+	-resource:dbsnp,VCF,known=true,training=false,truth=false,prior=2.0 $gatk_data/dbsnp_137.hg19.vcf.gz \
+	-mode INDEL \
+	-recalFile indels.recal.tmp \
+	-tranchesFile indels.tranches \
+	-rscriptFile indels.plots.R \
+	-nt $cpu_cores 
 
-mv indels.recal.tmp indels.recal
+	mv indels.recal.tmp indels.recal
+    fi
+
+done
+set -e
+
+[ -e indels.recal ] # indel recalibration failed
 
 # Apply recalibration
 java -Xmx7g -jar $gatk_jar \

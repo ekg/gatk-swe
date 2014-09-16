@@ -57,10 +57,18 @@ else
 #
 #
 my $i;
+
+
 if ($command eq "submit")
 {
     #parse command line to find inputs of the form -iname=value
     #save them in envoriment variable K_name=value, we can later retrieve them using swe get 
+
+    foreach (split (/\s+/, $ENV{SWE_KSUB_EXTRA_PARAMS}))
+    {
+	push (@ARGV,$_);
+    }
+
     my  $cmd_identifier=md5_hex(join(" ",@ARGV));
 
     for ($i=1; (($i<scalar(@ARGV)) and ($ARGV[$i] !~ "^--wrap"));$i++)
@@ -110,6 +118,10 @@ if ($command eq "submit")
                 die "$upload not found" unless -e $upload;
                 # "simulate upload"
                 run("cd $twd/twd && ln -s $upload ");
+		if ($upload =~ /tar.gz/)
+		{
+		    run("cd $twd/twd && tar xf ".basename($upload));
+		}
             }
         }
 
@@ -142,7 +154,7 @@ if ($command eq "submit")
         print STDERR "will submit: $cmdline\n" if $verbose;
         if ($dep_failed or system("cd $twd/twd && bash -c \"$cmdline\" >&2"))
         {
-            print STDERR "Execution failed\n" if $verbose;
+            print STDERR "____________________________ Execution failed\n" if $verbose;
         }
         else
         {
@@ -176,7 +188,7 @@ if ($command eq "submit")
         my $ksub_params="";
 
         $ksub_params.= " -q $ENV{SWE_QUEUE} " if $ENV{SWE_QUEUE};
-        $ksub_params.= $ENV{SWE_KSUB_EXTRA_PARAMS};
+#        $ksub_params.= $ENV{SWE_KSUB_EXTRA_PARAMS};
         
         for ($i=1;$i<scalar(@ARGV);$i++) 
         {
@@ -499,3 +511,4 @@ sub run
     }
     return ($ret == 0);
 }
+
