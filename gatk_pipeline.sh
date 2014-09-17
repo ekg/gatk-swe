@@ -10,7 +10,7 @@ export K_GATK_DATA=/tmp/gatk-reference
 export K_ANALYSIS=$K_ANALYSIS
 export GATK_JAR=./bin/GenomeAnalysisTKLite.jar
 export PATH=$PATH:./bin
-
+export SHELL=/bin/bash
 
 CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
 #CHROMOSOMES="chr22"
