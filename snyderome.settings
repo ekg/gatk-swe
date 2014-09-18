@@ -1,0 +1,5 @@
+PIPELINE=exome
+NAME=Snyderome
+#INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
+INPUT_FASTQ=paired[s3://gapp-east/snyderome/A804NLABXX.s_1_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_1_2.fq.gz]
+K_ANALYSIS=WGS

@@ -2,9 +2,11 @@
 set -e -x
 set -o pipefail
 
-. ./project.settings
+. ./general_settings.sh
 
-INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
+. $1
+
+#INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
 
 export K_GATK_DATA=/tmp/gatk-reference
 export K_ANALYSIS=$K_ANALYSIS
@@ -15,7 +17,7 @@ export SHELL=/bin/bash
 GENOME_FAI=./ucsc.hg19.fasta.fai
 [ -e $GENOME_FAI ] 
 CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
-#CHROMOSOMES="chr22"
+CHROMOSOMES="chr22"
 # chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
 
 BQSR_CHR=chr22
@@ -33,7 +35,7 @@ if [ "$SWE_ENGINE" = "clusterk" ]
 then
     export SWE_QUEUE=default
     export SWE_S3_STORAGE=s3://gapp-east-temp
-    export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 15000 -dm 20000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
+    export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 15000 -dm 40000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
     export SWE_DEV_MODE=1 # cache successfull task IDs
 
 else
@@ -43,7 +45,7 @@ fi
 
 [ -e bin.tar.gz ] || tar czvf bin.tar.gz ./bin
 
-NAME_PREFIX="Sample:$K_ANALYSIS";
+NAME_PREFIX="$NAME:$K_ANALYSIS";
 
 #####################################################################################################
 # Process input files:
@@ -102,7 +104,6 @@ do
 							 -iinput=$split_job_id:$split.fastq.gz \
 							 --wrap="bash align.sh")
 		align_job_ids="$align_job_ids $align_job_id"
-
 	done
 
 done
