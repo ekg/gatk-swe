@@ -178,7 +178,7 @@ if ($command eq "submit")
             {
                 my $old_id=`cat $workflow_path/progress/$cmd_identifier`;
                 chomp($old_id);
-                unless (system("kwait --task-id $old_id >/dev/null"))
+                unless (system("kwait --task-id $old_id >/dev/null 2>/dev/null"))
                 {
                     print $old_id;
                     exit 0;

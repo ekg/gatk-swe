@@ -3,8 +3,8 @@ set -e -x
 set -o pipefail
 
 . ./project.settings
-#INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
-GATK_JAR=s3://gapp-west/test@clusterk.com/GenomeAnalysisTK.jar
+
+INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
 
 export K_GATK_DATA=/tmp/gatk-reference
 export K_ANALYSIS=$K_ANALYSIS
@@ -12,6 +12,8 @@ export GATK_JAR=./bin/GenomeAnalysisTKLite.jar
 export PATH=$PATH:./bin
 export SHELL=/bin/bash
 
+GENOME_FAI=./ucsc.hg19.fasta.fai
+[ -e $GENOME_FAI ] 
 CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
 #CHROMOSOMES="chr22"
 # chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
@@ -22,17 +24,19 @@ BQSR_CHR=chr22
 
 
 #  SWE_ENGINE clusterk or local
-export SWE_ENGINE=local
+export SWE_ENGINE=clusterk
 
 
+export SWE_DEV_MODE=1 # cache successfull task IDs
 
 if [ "$SWE_ENGINE" = "clusterk" ]
 then
     export SWE_QUEUE=default
-    export SWE_S3_STORAGE=s3://gapp-west/swe-test
-    export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 10000 -dm 20000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
-else
+    export SWE_S3_STORAGE=s3://gapp-east-temp
+    export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 15000 -dm 20000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
     export SWE_DEV_MODE=1 # cache successfull task IDs
+
+else
     export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz "
 
 fi
@@ -120,7 +124,7 @@ for chr in $CHROMOSOMES
 do
 	#get chromosome size and compute optimal number of splits
 	
-	chr_size=$(grep "^$chr	" $K_GATK_DATA/hg19/ucsc.hg19.fasta.fai |cut -f 2)
+	chr_size=$(grep "^$chr	" $GENOME_FAI |cut -f 2)
 	gatk_splits=$[$chr_size/10000000]
 	[ "$gatk_splits" != "0" ]
 
@@ -223,6 +227,7 @@ vqsr_job_id=$(./swe submit \
 		    -d $combine_vcf_job_id \
 		    -u vqsr/vqsr.sh \
 		    -igatk_jar=$GATK_JAR \
+		    -t NAME=$NAME_PREFIX:vqsr -t STAGE=vqsr \
 		    -iinput=$combine_vcf_job_id:raw.vcf.gz \
 		    --wrap=" bash vqsr.sh")
 
