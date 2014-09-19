@@ -17,7 +17,7 @@ export SHELL=/bin/bash
 GENOME_FAI=./ucsc.hg19.fasta.fai
 [ -e $GENOME_FAI ] 
 CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
-CHROMOSOMES="chr22"
+#CHROMOSOMES="chr22"
 # chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
 
 BQSR_CHR=chr22
@@ -77,7 +77,7 @@ do
 		false
 	fi
 
-	splits=$[$file1_size/1000000000+1]
+	splits=$[$file1_size/500000000+1]
 
 	echo Processing $input, will split it in $splits chunks
 

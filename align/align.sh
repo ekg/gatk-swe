@@ -10,18 +10,16 @@ cpu_cores=32
 GROUP_ID="@RG\tID:1\tPL:ILLUMINA\tPU:pu\tLB:group1\tSM:Sample_XXX"
 
 
-#cat $input > aligned.bam
-#./swe emit file aligned.bam
-
 
 #samtools sort is limited to 62M per thread, so that it won't take more than 2GB total
-
 bwa mem -M -p -t $cpu_cores -R "$GROUP_ID" $gatk_data/hg19/ucsc.hg19.fasta $input \
     | samtools view -@ $cpu_cores -1 -bt   $gatk_data/hg19/ucsc.hg19.fasta.fai - \
     | samtools sort -@ $cpu_cores -m $[2000/$cpu_cores]M -l 0 - raw
 
 samtools index raw.bam
 
+
+#split alignments by chromosomes. Emit separate bam files for each contig:  chr1.bam chr2.bam ...
 chr_list=$(samtools idxstats raw.bam| cut -f 1 |grep chr)
 for chr in $chr_list
 do

@@ -178,10 +178,16 @@ if ($command eq "submit")
             {
                 my $old_id=`cat $workflow_path/progress/$cmd_identifier`;
                 chomp($old_id);
+                if ( -e "$workflow_path/progress/$cmd_identifier.success")
+                {
+            	    print $old_id;
+            	    exit(0);
+                }
                 unless (system("kwait --task-id $old_id >/dev/null 2>/dev/null"))
                 {
+            	    system("touch $workflow_path/progress/$cmd_identifier.success");
                     print $old_id;
-                    exit 0;
+                    exit (0);
                 }
             }
         }
@@ -348,20 +354,29 @@ sub store
         my $s3_path;
         if ($taskid)
         {
-            $s3_path=$S3_PREFIX."/$taskid".$dir;
+    	    $s3_path=$S3_PREFIX."/".prefix_task_id($taskid).$dir;
         }
         else
         {
-            $s3_path=$S3_PREFIX."/$taskid/".md5_hex(dirname($local_file));;
+            $s3_path=$S3_PREFIX."/".prefix_task_id($taskid)."/".md5_hex(dirname($local_file));;
         }
-        run("es3 sync $local_file $s3_path/");
+    	#retry es3 if it fails
+        unless (run("es3 -n 10 sync $local_file $s3_path/",1))
+	{
+		sleep( rand()*120);
+	       run("es3  -n 10 sync $local_file $s3_path/");
+	}
 
         return "$s3_path/".basename($local_file);
     }
 
 }
 
-
+sub prefix_task_id 
+{
+    my $task_id=shift;
+    return substr(md5_hex($task_id),0,5)."-$task_id";
+}
 
 sub emit 
 {
@@ -434,7 +449,7 @@ sub fetch {
             # path is relative to the directory
             my $dir=dirname($path);
             $dir="" if $dir eq ".";
-            my $s3_path=$S3_PREFIX."/$taskid";
+            my $s3_path=$S3_PREFIX."/".prefix_task_id($taskid);
             $s3_path.="/$dir" if $dir;
             #$dir="." if $dir eq "";
             my $local_dir="./swe_$taskid";

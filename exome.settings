@@ -1,7 +1,6 @@
 PIPELINE=exome
 NAME=SAMPLE_EXOME_025
-#INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
-INPUT_FASTQ=local[/tmp/gcat_set_025_1.fastq.gz,/tmp/gcat_set_025_2.fastq.gz]
+INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
+#INPUT_FASTQ=local[/tmp/gcat_set_025_1.fastq.gz,/tmp/gcat_set_025_2.fastq.gz]
 K_ANALYSIS=exome
-AWS_S3_ROOT=s3://gapp-west/test@clusterk.com
-BED_FILTER=s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025.bed
+SWE_ENGINE=clusterk

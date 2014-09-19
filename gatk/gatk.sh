@@ -15,6 +15,7 @@ tabix -h $gatk_data/Mills_and_1000G_gold_standard.indels.hg19.vcf.gz $interval >
 tabix -h $gatk_data/1000G_phase1.indels.hg19.vcf.gz $interval                  > VCF2.vcf
 tabix -h $gatk_data/dbsnp_137.hg19.vcf.gz $interval         > interval.dbsnp_137.hg19.vcf
 
+
 java -Xmx2g -jar ./MarkDuplicates.jar INPUT=$input  OUTPUT=deduplicated.bam REMOVE_DUPLICATES=true METRICS_FILE=duplication.metrics
 samtools index deduplicated.bam
 

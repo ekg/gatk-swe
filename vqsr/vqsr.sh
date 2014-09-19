@@ -8,7 +8,7 @@ gatk_jar=$(./swe get gatk_jar)
 gatk_data=$(./swe get GATK_DATA)
 analysis=$(./swe get ANALYSIS)
 
-[[ $analysis =~ exome ]]
+[[ $analysis =~ exome ]] || [[ $analysis =~ WGS ]]
 
 cpu_cores=32
 
@@ -48,20 +48,30 @@ else
 fi
 
 
-java -Xmx7g -jar $gatk_jar \
-    -T VariantRecalibrator \
-    -R $gatk_data/hg19/ucsc.hg19.fasta \
-    -input snps.raw.vcf \
-    $bad_variants \
-    -resource:hapmap,VCF,known=false,training=true,truth=true,prior=15.0 $gatk_data/hapmap_3.3.hg19.vcf.gz \
-    -resource:omni,VCF,known=false,training=true,truth=false,prior=12.0 $gatk_data/1000G_omni2.5.hg19.vcf.gz \
-    -resource:dbsnp,VCF,known=true,training=false,truth=false,prior=2.0 $gatk_data/dbsnp_137.hg19.vcf.gz \
-    $snp_annotations \
-    -mode SNP \
-    -recalFile snps.recal.tmp \
-    -tranchesFile snps.tranches \
-    -rscriptFile snps.plots.R \
-    -nt $cpu_cores
+set +e
+for extra_options in " "  " --maxGaussians 4 "  " --maxGaussians 2 "
+do
+    if [ ! -e indels.recal ]
+    then
+	java -Xmx7g -jar $gatk_jar \
+	    -T VariantRecalibrator \
+	    -R $gatk_data/hg19/ucsc.hg19.fasta \
+	    -input snps.raw.vcf \
+	    $bad_variants \
+	    -resource:hapmap,VCF,known=false,training=true,truth=true,prior=15.0 $gatk_data/hapmap_3.3.hg19.vcf.gz \
+	    -resource:omni,VCF,known=false,training=true,truth=false,prior=12.0 $gatk_data/1000G_omni2.5.hg19.vcf.gz \
+	    -resource:dbsnp,VCF,known=true,training=false,truth=false,prior=2.0 $gatk_data/dbsnp_137.hg19.vcf.gz \
+	    $snp_annotations \
+	    -mode SNP \
+	    -recalFile snps.recal.tmp \
+	    -tranchesFile snps.tranches \
+	    -rscriptFile snps.plots.R \
+	    -nt $cpu_cores && mv snps.recal.tmp snps.recal
+    fi
+done
+set -e
+
+[ -e snps.recal ] # indel recalibration failed
         
 mv snps.recal.tmp snps.recal
 
