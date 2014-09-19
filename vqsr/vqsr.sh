@@ -51,7 +51,7 @@ fi
 set +e
 for extra_options in " -nt $cpu_cores "  " -nt 8 --maxGaussians 4 "  " --maxGaussians 2 "
 do
-    if [ ! -e indels.recal ]
+    if [ ! -e snps.recal ]
     then
 	java -Xmx7g -jar $gatk_jar \
 	    -T VariantRecalibrator \
@@ -62,6 +62,7 @@ do
 	    -resource:omni,VCF,known=false,training=true,truth=false,prior=12.0 $gatk_data/1000G_omni2.5.hg19.vcf.gz \
 	    -resource:dbsnp,VCF,known=true,training=false,truth=false,prior=2.0 $gatk_data/dbsnp_137.hg19.vcf.gz \
 	    $snp_annotations \
+	    $extra_options \
 	    -mode SNP \
 	    -recalFile snps.recal.tmp \
 	    -tranchesFile snps.tranches \
@@ -121,6 +122,7 @@ fi
 set +e
 for extra_options in " -nt $cpu_cores "  " -nt 8 --maxGaussians 4 "  " --maxGaussians 2 "
 do
+    echo extra options :$extra_options
     if [ ! -e indels.recal ]
     then
     java -Xmx7g  -jar $gatk_jar \
