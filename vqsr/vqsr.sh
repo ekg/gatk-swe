@@ -4,7 +4,7 @@ set -x
 set -o pipefail
 
 input=$(./swe get input | ./swe fetch -)
-gatk_jar=$(./swe get gatk_jar)
+gatk_jar=$(./swe get gatk_jar | ./swe fetch -)
 gatk_data=$(./swe get GATK_DATA)
 analysis=$(./swe get ANALYSIS)
 
@@ -40,16 +40,16 @@ fi
 
 #    foreach my $extra_options ("" , " --maxGaussians 4 "," --maxGaussians 2 ")
 
-if [[ $gatk_jar =~ GenomeAnalysisTKLite ]] ;
-then
+#if [[ $gatk_jar =~ GenomeAnalysisTKLite ]] ;
+#then
     bad_variants="--minNumBadVariants $min_variants "
-else
-    bad_variants="--numBadVariants $min_variants "
-fi
+#else
+#    bad_variants="--numBadVariants $min_variants "
+#fi
 
 
 set +e
-for extra_options in " "  " --maxGaussians 4 "  " --maxGaussians 2 "
+for extra_options in " -nt $cpu_cores "  " -nt 8 --maxGaussians 4 "  " --maxGaussians 2 "
 do
     if [ ! -e indels.recal ]
     then
@@ -65,8 +65,7 @@ do
 	    -mode SNP \
 	    -recalFile snps.recal.tmp \
 	    -tranchesFile snps.tranches \
-	    -rscriptFile snps.plots.R \
-	    -nt $cpu_cores && mv snps.recal.tmp snps.recal
+	    -rscriptFile snps.plots.R  && mv snps.recal.tmp snps.recal
     fi
 done
 set -e
@@ -104,12 +103,12 @@ if [ "$analysis" == "exome" ]
 fi
 
 
-if [[ $gatk_jar =~ GenomeAnalysisTKLite ]] ;
-then
+#if [[ $gatk_jar =~ GenomeAnalysisTKLite ]] ;
+#then
     bad_variants="--minNumBadVariants $min_variants "
-else
-    bad_variants="--numBadVariants $min_variants "
-fi
+#else
+#    bad_variants="--numBadVariants $min_variants "
+#fi
 
 
 
@@ -120,7 +119,7 @@ fi
 
 #try variant recalibration with succesively more relaxed parameters to go around numerical instabilities
 set +e
-for extra_options in " "  " --maxGaussians 4 "  " --maxGaussians 2 "
+for extra_options in " -nt $cpu_cores "  " -nt 8 --maxGaussians 4 "  " --maxGaussians 2 "
 do
     if [ ! -e indels.recal ]
     then
@@ -136,8 +135,7 @@ do
 	-mode INDEL \
 	-recalFile indels.recal.tmp \
 	-tranchesFile indels.tranches \
-	-rscriptFile indels.plots.R \
-	-nt $cpu_cores && mv indels.recal.tmp indels.recal
+	-rscriptFile indels.plots.R && mv indels.recal.tmp indels.recal
     fi
 
 done

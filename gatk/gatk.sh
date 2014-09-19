@@ -4,7 +4,7 @@ set -x
 set -o pipefail
 
 input=$(./swe get input | ./swe fetch -)
-gatk_jar=$(./swe get gatk_jar)
+gatk_jar=$(./swe get gatk_jar | ./swe fetch -)
 bqsr=$(./swe get bqsr | ./swe fetch -)
 interval_file=$(./swe get interval|./swe fetch -)
 interval=$(cat $interval_file)

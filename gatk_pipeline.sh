@@ -10,26 +10,48 @@ set -o pipefail
 
 export K_GATK_DATA=/tmp/gatk-reference
 export K_ANALYSIS=$K_ANALYSIS
-export GATK_JAR=./bin/GenomeAnalysisTKLite.jar
 export PATH=$PATH:./bin
 export SHELL=/bin/bash
 
+
+[ "$SWE_ENGINE"  != "" ] || export SWE_ENGINE=clusterk
+[ "$CHROMOSOMES" != "" ] || export CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
+
+
+export SWE_DEV_MODE=1 # cache successfull task IDs
+
+
 GENOME_FAI=./ucsc.hg19.fasta.fai
 [ -e $GENOME_FAI ] 
-CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
 #CHROMOSOMES="chr22"
+
 # chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
 
 BQSR_CHR=chr22
 
 # split input files into chunks
 
+#### Save GATK jar file locall or on S3, and provide a link to downstream processes
+
+#if a GATK 3.0 jar is specified via HTTP - we can only do it if we have a valid license, which we do
+if [ "$GATK_HTTP" != "" ]
+then
+    [ -e /tmp/GenomeAnalysisTK.jar ] || wget -O /tmp/GenomeAnalysisTK.jar $GATK_HTTP
+
+    export GATK_JAR=$(./swe store /tmp/GenomeAnalysisTK.jar)
+
+else
+    # if HTTP link for 3.0 is not provided fall back on free GATK_Lite
+    export GATK_JAR=$(./swe store ./bin/GenomeAnalysisTKLite.jar)
+fi
+
+
+
+
 
 #  SWE_ENGINE clusterk or local
-export SWE_ENGINE=clusterk
 
 
-export SWE_DEV_MODE=1 # cache successfull task IDs
 
 if [ "$SWE_ENGINE" = "clusterk" ]
 then
@@ -37,7 +59,6 @@ then
     export SWE_S3_STORAGE=s3://gapp-east-temp
     export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 15000 -dm 40000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
     export SWE_DEV_MODE=1 # cache successfull task IDs
-
 else
     export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz "
 
@@ -107,7 +128,6 @@ do
 	done
 
 done
-#exit 1
 
 ########### GATK  stage
 # 1. combine chromosome files from each alignment job into single BAM file per chromosome
@@ -164,7 +184,6 @@ do
 
 	fi
 	
-
 	# for each combined chromosomes, run split_chr.sh to obtain list of 
 	#chr_split.sh: finds genomic locations where it is safe to split a chromosomes
 	#               returns list of bam files:  split.$chr.$split_id.bam
@@ -202,7 +221,6 @@ do
 	done
 done
 
-#exit 1
 # collect all GATK job ids, and create comma separated list for dependendencies (-d)
 gatk_job_list=$(echo $gatk_job_ids |tr " " ",")
 

@@ -10,7 +10,7 @@ input=$(./swe fetch $input)
 
 chr=$(./swe get chr)
 gatk_data=$(./swe get GATK_DATA)
-gatk_jar=$(./swe get gatk_jar)
+gatk_jar=$(./swe get gatk_jar | ./swe fetch -)
 [ -e $gatk_jar ]
 cpu_cores=32
 

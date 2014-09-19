@@ -11,6 +11,9 @@
 #
 #
 
+
+
+
 use strict;
 use File::Basename;
 use Digest::MD5 qw(md5 md5_hex md5_base64);
@@ -147,7 +150,12 @@ if ($command eq "submit")
         my $cmdline;
         for ($i=1;$i<scalar(@ARGV);$i++)
         {
-            $cmdline ="./swe init && $1" if ($ARGV[$i] =~ /^--wrap=(.*)$/);
+	    if ($ARGV[$i] =~ /^--wrap=(.*)$/)
+	    {
+        	$cmdline ="./swe init && $1";
+	    	$ENV{K_CMDLINE}=$1;
+	    }
+    
         }
         die "cmd line not found, please specify it with --wrap=\"command\" " unless $cmdline;
 
@@ -199,7 +207,11 @@ if ($command eq "submit")
         for ($i=1;$i<scalar(@ARGV);$i++) 
         {
            # die "Visual mode is not supported" if $ARGV[$i] eq "-v";   
-            $ARGV[$i]="--wrap=\" ./swe init && $1\"" if ($ARGV[$i]=~/--wrap=(.*)$/);
+	    if ($ARGV[$i]=~/--wrap=(.*)$/)
+	    {
+		$ENV{K_CMDLINE}=$1;
+        	$ARGV[$i]="--wrap=\" ./swe init && $1\"" 
+	    }
             $ksub_params.= " $ARGV[$i] ";
         }
 
@@ -234,6 +246,17 @@ if ($command eq "init")
     {
         die "Some dependencies failed: $ENV{CLUSTERK_FAILED_DEPS}" if $ENV{CLUSTERK_FAILED_DEPS};
     }
+    print "\033[36m";
+    print "SWE configuration:---------------------------------------------------\n";
+    foreach (keys %ENV)
+    {
+	if (/^K_(\S+)/)
+	{
+	    print "$1=$ENV{$_}\n";
+	} 
+    }
+    print "SWE:-----------------------------------------------------------------\033[0m\n";
+
     exit(0);
 }
 
