@@ -15,41 +15,20 @@ export SHELL=/bin/bash
 
 
 [ "$SWE_ENGINE"  != "" ] || export SWE_ENGINE=clusterk
+
+
+
+
+#chromosomes should start with BQSR_CHROMOSOME
+BQSR_CHR=chr22
 [ "$CHROMOSOMES" != "" ] || export CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
 
 
 export SWE_DEV_MODE=1 # cache successfull task IDs
 
 
-GENOME_FAI=./ucsc.hg19.fasta.fai
+GENOME_FAI=./bin/ucsc.hg19.fasta.fai
 [ -e $GENOME_FAI ] 
-#CHROMOSOMES="chr22"
-
-# chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
-
-BQSR_CHR=chr22
-
-# split input files into chunks
-
-#### Save GATK jar file locall or on S3, and provide a link to downstream processes
-
-#if a GATK 3.0 jar is specified via HTTP - we can only do it if we have a valid license, which we do
-if [ "$GATK_HTTP" != "" ]
-then
-    [ -e /tmp/GenomeAnalysisTK.jar ] || wget -O /tmp/GenomeAnalysisTK.jar $GATK_HTTP
-
-    export GATK_JAR=$(./swe store /tmp/GenomeAnalysisTK.jar)
-
-else
-    # if HTTP link for 3.0 is not provided fall back on free GATK_Lite
-    export GATK_JAR=$(./swe store ./bin/GenomeAnalysisTKLite.jar)
-fi
-
-
-
-
-
-#  SWE_ENGINE clusterk or local
 
 
 
@@ -64,6 +43,19 @@ else
 
 fi
 
+
+
+#if a GATK 3.0 jar is specified - use it. Otherwise fall back to GATK_Lita
+#upload GATK_JAR
+if [ "$GATK_JAR" != "" ]
+then
+    export GATK_JAR=$(./swe store $GATK_JAR)
+else
+    # if HTTP link for 3.0 is not provided fall back on free GATK_Lite
+    export GATK_JAR=$(./swe store ./GenomeAnalysisTKLite.jar)
+fi
+
+
 [ -e bin.tar.gz ] || tar czvf bin.tar.gz ./bin
 
 NAME_PREFIX="$NAME:$K_ANALYSIS";
@@ -73,7 +65,14 @@ NAME_PREFIX="$NAME:$K_ANALYSIS";
 # 1. Split each input file into chunks of 1GB
 # 2. Launch alignment job per each chunk
 # 3. Each alignment will return one sorted file per chromosome, which will later be combined.
+#
+# supported input formats:   paired[s3_path_for_read1,s3_path_for_read2]
+#                            local[local_path_for_read1,local_path_for_read2]
+#
+#
 
+#approximate size of input splits in bytes. 500MB 
+input_split_size=500000000
 
 #list of alignment job IDs
 align_job_ids=""
@@ -98,7 +97,7 @@ do
 		false
 	fi
 
-	splits=$[$file1_size/500000000+1]
+	splits=$[$file1_size/$input_split_size+1]
 
 	echo Processing $input, will split it in $splits chunks
 
@@ -110,6 +109,7 @@ do
 						 -isplits=$splits \
 						 -iinput1=$file1 \
 						 -iinput2=$file2 \
+						 -c 8 \
 						 --wrap="bash split.sh")
 
 	#align each split, reference them via $split_job_id
@@ -128,6 +128,7 @@ do
 	done
 
 done
+
 
 ########### GATK  stage
 # 1. combine chromosome files from each alignment job into single BAM file per chromosome
@@ -166,6 +167,7 @@ do
 							-ichr=$chr \
 							-iinput="$input_array" \
 							-u combine/combine.sh \
+							-c 8 \
 							-t NAME=$NAME_PREFIX:combine:$chr -t STAGE=combine \
 							--wrap="bash combine.sh" )
 
@@ -194,6 +196,7 @@ do
 						  -ichr=$chr \
 						  -t NAME=$NAME_PREFIX:chr_split:$chr -t STAGE=chr_split \
 						  -u split_chr/split_chr.sh \
+						  -c 8 \
 						  -u split_chr/advanced_splitter.pl \
 						  -u split_chr/breakpoints2intervals.pl \
 						  -u split_chr/equally_spaced_intervals.pl \
@@ -252,7 +255,7 @@ vqsr_job_id=$(./swe submit \
 
 #wait for all jobs to finish
 ./swe wait $vqsr_job_id
-
+./swe fetch $vqsr_job_id:recalibrated.filtered.vcf.gz
 
 exit 0
 

@@ -67,10 +67,11 @@ if ($command eq "submit")
     #parse command line to find inputs of the form -iname=value
     #save them in envoriment variable K_name=value, we can later retrieve them using swe get 
 
-    foreach (split (/\s+/, $ENV{SWE_KSUB_EXTRA_PARAMS}))
-    {
-	push (@ARGV,$_);
-    }
+    # if EXTRA ARGS are present add them to the beginning of the arguments
+    my @new_ARGV=split (/\s+/, $ENV{SWE_KSUB_EXTRA_PARAMS});
+    splice(@ARGV,1,0,@new_ARGV);
+    
+
 
     my  $cmd_identifier=md5_hex(join(" ",@ARGV));
 
@@ -93,11 +94,11 @@ if ($command eq "submit")
 
         if ($dev_mode)
         {
-            run("mkdir -p $workflow_path/progress");
+            run(  "mkdir -p ./.swe-progress");
            
-            if (-e "$workflow_path/progress/$cmd_identifier")
+            if (-e        " ./.swe-progress/$cmd_identifier")
             {
-                system("cat $workflow_path/progress/$cmd_identifier");
+                system("cat ./.swe-progress/$cmd_identifier");
                 exit(0);
             }
         }
@@ -167,7 +168,7 @@ if ($command eq "submit")
         else
         {
             run("touch $workflow_path/$id/.success");
-            system("echo $id >$workflow_path/progress/$cmd_identifier") if $dev_mode;       
+            system("echo $id > ./.swe-progress/$cmd_identifier") if $dev_mode;       
         }
         print "$id";
         exit;
@@ -180,24 +181,24 @@ if ($command eq "submit")
         if ($dev_mode)
         {
             #in dev_mode only return previous task id if it succeeded
-            run("mkdir -p $workflow_path/progress");
-           
-            if (-e "$workflow_path/progress/$cmd_identifier")
+            run("mkdir -p ./.swe-progress");
+            if (-e "./.swe-progress/$cmd_identifier")
             {
-                my $old_id=`cat $workflow_path/progress/$cmd_identifier`;
+                my $old_id=`cat ./.swe-progress/$cmd_identifier`;
                 chomp($old_id);
-                if ( -e "$workflow_path/progress/$cmd_identifier.success")
+                if ( -e "./.swe-progress/$cmd_identifier.success")
                 {
             	    print $old_id;
             	    exit(0);
                 }
                 unless (system("kwait --task-id $old_id >/dev/null 2>/dev/null"))
                 {
-            	    system("touch $workflow_path/progress/$cmd_identifier.success");
+            	    system("touch ./.swe-progress/$cmd_identifier.success");
                     print $old_id;
                     exit (0);
                 }
             }
+
         }
         my $ksub_params="";
 
@@ -220,7 +221,7 @@ if ($command eq "submit")
         my $task_id=`ksub $ksub_params` || die "ksub $ksub_params failed";
         chomp $task_id;
         print "$task_id";
-        system("echo $task_id > $workflow_path/progress/$cmd_identifier") if $dev_mode;
+        system("echo $task_id > ./.swe-progress/$cmd_identifier") if $dev_mode;
         exit;
     }
 
@@ -477,8 +478,14 @@ sub fetch {
             #$dir="." if $dir eq "";
             my $local_dir="./swe_$taskid";
             $local_dir.="/dir" if $dir;
-            run("es3 sync $s3_path/".basename($path)." $local_dir/");
-            return "$local_dir/".basename($path);
+
+
+    	    #retry es3 if it fails
+    	    unless (run("es3 sync $s3_path/".basename($path)." $local_dir/",1))
+	    {
+		sleep( rand()*120);
+		    run("es3 sync $s3_path/".basename($path)." $local_dir/");
+	    }
         }
         else
         {

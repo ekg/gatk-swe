@@ -72,8 +72,6 @@ done
 set -e
 
 [ -e snps.recal ] # indel recalibration failed
-        
-mv snps.recal.tmp snps.recal
 
 java  -Xmx7g  -jar $gatk_jar \
     -T ApplyRecalibration \
