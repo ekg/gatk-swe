@@ -486,6 +486,8 @@ sub fetch {
 		sleep( rand()*120);
 		    run("es3 sync $s3_path/".basename($path)." $local_dir/");
 	    }
+	    return "$local_dir/".basename($path);
+	                
         }
         else
         {

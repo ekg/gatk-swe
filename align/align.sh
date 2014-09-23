@@ -28,7 +28,6 @@ do
 	# run emits in parallel
 	{ ./swe emit file $chr.bam     || touch emit.failed & }
 	{ ./swe emit file $chr.bam.bai || touch emit.failed & }
-
 done
 
 wait

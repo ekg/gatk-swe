@@ -24,7 +24,7 @@ BQSR_CHR=chr22
 [ "$CHROMOSOMES" != "" ] || export CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
 
 
-export SWE_DEV_MODE=1 # cache successfull task IDs
+#export SWE_DEV_MODE=1 # cache successfull task IDs
 
 
 GENOME_FAI=./bin/ucsc.hg19.fasta.fai
@@ -111,7 +111,7 @@ do
 						 -iinput2=$file2 \
 						 -c 8 \
 						 --wrap="bash split.sh")
-
+	
 	#align each split, reference them via $split_job_id
 
 	for split in $(seq 1 $splits)
@@ -162,6 +162,7 @@ do
 
 	#submit comine jobs, and pass list of alignent files as input, and all alignment jobs as prerequsite
 	#combine.sh: accepts a list of aligned bam files, produced combined file for a given chromsome
+	# output: $combine_job_id:$chr.bam
 	combine_job_id=$(./swe submit \
 							-d $align_job_list \
 							-ichr=$chr \
@@ -175,6 +176,7 @@ do
 	if [ "$chr" == "$BQSR_CHR" ]
 	then
 		#bqsr.sh: runs Base Quality recalibration on chr22
+		# output is $bqsr_job_id:bqsr.grp
 		bqsr_job_id=$(./swe submit \
 						     -d $combine_job_id \
 						     -iinput=$combine_job_id:$chr.bam \
@@ -207,6 +209,7 @@ do
 	do
 
 		#gatk.sh runs gatk on a sub-interval and applies BQSR
+		# output: $gatk_job_id:raw.vcf
 		gatk_job_id=$(./swe submit \
 							-d $chr_split_id,$bqsr_job_id \
 							-iinput=$chr_split_id:$split_id.bam \
@@ -245,6 +248,7 @@ combine_vcf_job_id=$(./swe submit \
 
 #submit a job that run 
 #run variant quality recalibration
+# output: $vqsr_job_id:recalibrated.filtered.vcf.gz
 vqsr_job_id=$(./swe submit \
 		    -d $combine_vcf_job_id \
 		    -u vqsr/vqsr.sh \
@@ -254,7 +258,7 @@ vqsr_job_id=$(./swe submit \
 		    --wrap=" bash vqsr.sh")
 
 #wait for all jobs to finish
-./swe wait $vqsr_job_id
+./swe wait  $vqsr_job_id
 ./swe fetch $vqsr_job_id:recalibrated.filtered.vcf.gz
 
 exit 0
