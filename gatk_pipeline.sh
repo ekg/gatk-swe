@@ -49,13 +49,14 @@ fi
 #upload GATK_JAR
 if [ "$GATK_JAR" != "" ]
 then
-    export GATK_JAR=$(./swe store $GATK_JAR)
+GATK_JAR=$(./swe store $GATK_JAR)
 else
     # if HTTP link for 3.0 is not provided fall back on free GATK_Lite
-    export GATK_JAR=$(./swe store ./GenomeAnalysisTKLite.jar)
+GATK_JAR=$(./swe store ./GenomeAnalysisTKLite.jar)
 fi
 
 
+[ "$GATK_JAR" != "" ] #GATK_JAR must be defined
 [ -e bin.tar.gz ] || tar czvf bin.tar.gz ./bin
 
 NAME_PREFIX="$NAME:$K_ANALYSIS";
