@@ -387,8 +387,8 @@ sub store
     	#retry es3 if it fails
         unless (run("es3 -n 10 sync $local_file $s3_path/",1))
 	{
-		sleep( rand()*120);
-	       run("es3  -n 10 sync $local_file $s3_path/");
+		sleep(rand()*120);
+	       run("es3  -n 2 sync $local_file $s3_path/");
 	}
 
         return "$s3_path/".basename($local_file);
@@ -481,10 +481,10 @@ sub fetch {
 
 
     	    #retry es3 if it fails
-    	    unless (run("es3 sync $s3_path/".basename($path)." $local_dir/",1))
+    	    unless (run("es3 -n 10 sync $s3_path/".basename($path)." $local_dir/",1))
 	    {
 		sleep( rand()*120);
-		    run("es3 sync $s3_path/".basename($path)." $local_dir/");
+		    run("es3 -n 2 sync $s3_path/".basename($path)." $local_dir/");
 	    }
 	    return "$local_dir/".basename($path);
 	                
@@ -492,7 +492,12 @@ sub fetch {
         else
         {
 
-            run("es3 sync $file ./".md5_hex(dirname($file))."/");
+    	    unless (run("es3 -n 10  sync $file ./".md5_hex(dirname($file))."/",1))
+	    {
+		sleep( rand()*120);
+		    run("es3 -n 2   sync $file ./".md5_hex(dirname($file))."/");
+	    }
+
             return "./".md5_hex(dirname($file))."/".basename($file);
         }        
     }
