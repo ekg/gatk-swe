@@ -6,4 +6,4 @@ K_ANALYSIS=exome
 CHROMOSOMES=chr22
 #SWE_ENGINE=local
 
-GATK_JAR=~/GenomeAnalysisTK.jar
+#GATK_JAR=~/GenomeAnalysisTK.jar

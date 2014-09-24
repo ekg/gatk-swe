@@ -143,12 +143,13 @@ done
 gatk_splits=10
 #combine per chromosomes
 
+
 for chr in $CHROMOSOMES
 do
 	#get chromosome size and compute optimal number of splits
 	
 	chr_size=$(grep "^$chr	" $GENOME_FAI |cut -f 2)
-	gatk_splits=$[$chr_size/10000000]
+	gatk_splits=$[$chr_size/5000000]
 	[ "$gatk_splits" != "0" ]
 
 	#create comma separated list of alignment jobs

@@ -5,4 +5,4 @@ INPUT_FASTQ="paired[s3://gapp-east/snyderome/A804NLABXX.s_1_1.fq.gz,s3://gapp-ea
 #INPUT_FASTQ="paired[s3://gapp-east/snyderome/A804NLABXX.s_1_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_1_2.fq.gz]"
 K_ANALYSIS=WGS
 #CHROMOSOMES=chr22
-GATK_JAR=~/GenomeAnalysisTK.jar
+#GATK_JAR=~/GenomeAnalysisTK.jar
