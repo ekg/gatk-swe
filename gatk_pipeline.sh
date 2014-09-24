@@ -109,7 +109,7 @@ do
 						 -isplits=$splits \
 						 -iinput1=$file1 \
 						 -iinput2=$file2 \
-						 -c 8 \
+						 -c 16 \
 						 --wrap="bash split.sh")
 	
 	#align each split, reference them via $split_job_id

@@ -1,7 +1,6 @@
 PIPELINE=exome
 NAME=Snyderome
 #INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
-
 INPUT_FASTQ="paired[s3://gapp-east/snyderome/A804NLABXX.s_1_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_1_2.fq.gz] paired[s3://gapp-east/snyderome/A804NLABXX.s_2_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_2_2.fq.gz] paired[s3://gapp-east/snyderome/A804NLABXX.s_3_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_3_2.fq.gz] paired[s3://gapp-east/snyderome/A804NLABXX.s_4_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_4_2.fq.gz] paired[s3://gapp-east/snyderome/A804NLABXX.s_5_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_5_2.fq.gz] paired[s3://gapp-east/snyderome/A804NLABXX.s_6_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_6_2.fq.gz] paired[s3://gapp-east/snyderome/A804NLABXX.s_7_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_7_2.fq.gz] paired[s3://gapp-east/snyderome/A804NLABXX.s_8_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_8_2.fq.gz]"
 #INPUT_FASTQ="paired[s3://gapp-east/snyderome/A804NLABXX.s_1_1.fq.gz,s3://gapp-east/snyderome/A804NLABXX.s_1_2.fq.gz]"
 K_ANALYSIS=WGS
