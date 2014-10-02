@@ -5,5 +5,4 @@ INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_G
 K_ANALYSIS=exome
 CHROMOSOMES=chr22
 #SWE_ENGINE=local
-
 #GATK_JAR=~/GenomeAnalysisTK.jar

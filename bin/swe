@@ -68,8 +68,7 @@ if ($command eq "submit")
     #save them in envoriment variable K_name=value, we can later retrieve them using swe get 
 
     # if EXTRA ARGS are present add them to the beginning of the arguments
-    my @new_ARGV=split (/\s+/, $ENV{SWE_KSUB_EXTRA_PARAMS});
-    splice(@ARGV,1,0,@new_ARGV);
+    #splice(@ARGV,1,0,@new_ARGV);
     
 
 
@@ -191,7 +190,7 @@ if ($command eq "submit")
             	    print $old_id;
             	    exit(0);
                 }
-                unless (system("kwait --task-id $old_id >/dev/null 2>/dev/null"))
+                unless (system("kwait $old_id >/dev/null 2>/dev/null"))
                 {
             	    system("touch ./.swe-progress/$cmd_identifier.success");
                     print $old_id;
@@ -203,7 +202,6 @@ if ($command eq "submit")
         my $ksub_params="";
 
         $ksub_params.= " -q $ENV{SWE_QUEUE} " if $ENV{SWE_QUEUE};
-#        $ksub_params.= $ENV{SWE_KSUB_EXTRA_PARAMS};
         
         for ($i=1;$i<scalar(@ARGV);$i++) 
         {
@@ -276,7 +274,7 @@ if ($command eq "wait")
 
     if ($engine eq "clusterk")
     { 
-        run ("kwait --task-id $ARGV[1]");
+        run ("kwait $ARGV[1]");
         exit(0);
     }
     die;

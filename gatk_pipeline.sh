@@ -36,7 +36,7 @@ if [ "$SWE_ENGINE" = "clusterk" ]
 then
     export SWE_QUEUE=default
     export SWE_S3_STORAGE=s3://gapp-east-temp
-    export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 15000 -dm 40000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
+    export common_params=" -u bin.tar.gz -t ANALYSIS=$K_ANALYSIS -c auto:ANALYSIS,STAGE -e auto:ANALYSIS,STAGE -m 15000 -dm 40000 -de auto:ANALYSIS,STAGE -th auto:ANALYSIS,STAGE  "
     export SWE_DEV_MODE=1 # cache successfull task IDs
 else
     export SWE_KSUB_EXTRA_PARAMS=" -u bin.tar.gz "
@@ -44,7 +44,7 @@ else
 fi
 
 
-
+common_params="$common_params -j 1"
 #if a GATK 3.0 jar is specified - use it. Otherwise fall back to GATK_Lita
 #upload GATK_JAR
 if [ "$GATK_JAR" != "" ]
@@ -103,7 +103,7 @@ do
 	echo Processing $input, will split it in $splits chunks
 
 	# input.sh:  accepts input fastq, splits in N chunks, saves them as N.fastq.gz
-	split_job_id=$(./swe submit \
+	split_job_id=$(./swe submit $common_params \
 						 -u split_fastq/split.sh \
 						 -u split_fastq/split_input_fastq.pl \
 						 -t NAME=$NAME_PREFIX:interleave -t STAGE=interleave\
@@ -118,7 +118,7 @@ do
 	for split in $(seq 1 $splits)
 	do
 		# align.sh: accepts input split file, produces alignment, split by chromosome
-		align_job_id=$(./swe submit \
+		align_job_id=$(./swe submit $common_params  \
 							 -u align/align.sh \
 							 -d $split_job_id \
 							 -t NAME=$NAME_PREFIX:align -t STAGE=align\
@@ -165,7 +165,7 @@ do
 	#submit comine jobs, and pass list of alignent files as input, and all alignment jobs as prerequsite
 	#combine.sh: accepts a list of aligned bam files, produced combined file for a given chromsome
 	# output: $combine_job_id:$chr.bam
-	combine_job_id=$(./swe submit \
+	combine_job_id=$(./swe submit  $common_params \
 							-d $align_job_list \
 							-ichr=$chr \
 							-iinput="$input_array" \
@@ -179,7 +179,7 @@ do
 	then
 		#bqsr.sh: runs Base Quality recalibration on chr22
 		# output is $bqsr_job_id:bqsr.grp
-		bqsr_job_id=$(./swe submit \
+		bqsr_job_id=$(./swe submit  $common_params \
 						     -d $combine_job_id \
 						     -iinput=$combine_job_id:$chr.bam \
 						     -t NAME=$NAME_PREFIX:bqsr:$chr -t STAGE=bqsr \
@@ -193,7 +193,7 @@ do
 	# for each combined chromosomes, run split_chr.sh to obtain list of 
 	#chr_split.sh: finds genomic locations where it is safe to split a chromosomes
 	#               returns list of bam files:  split.$chr.$split_id.bam
-	chr_split_id=$(./swe submit \
+	chr_split_id=$(./swe submit  $common_params \
 						  -d $combine_job_id \
 						  -iinput=$combine_job_id:$chr.bam \
 						  -isplits=$gatk_splits \
@@ -212,7 +212,7 @@ do
 
 		#gatk.sh runs gatk on a sub-interval and applies BQSR
 		# output: $gatk_job_id:raw.vcf
-		gatk_job_id=$(./swe submit \
+		gatk_job_id=$(./swe submit  $common_params \
 							-d $chr_split_id,$bqsr_job_id \
 							-iinput=$chr_split_id:$split_id.bam \
 							-iinterval=$chr_split_id:$split_id.interval \
@@ -240,7 +240,7 @@ done
 
 #submit a job that combines all sub-region vcf files, into one sorted VCF
 #combine_vcf.sh concatenate sub-region VCFs into final VCF
-combine_vcf_job_id=$(./swe submit \
+combine_vcf_job_id=$(./swe submit  $common_params \
 			    -d $gatk_job_list \
 			    -iinput="$input_array" \
 			    -t NAME=$NAME_PREFIX:combine_vcf -t STAGE=combine_vcf \
@@ -251,7 +251,7 @@ combine_vcf_job_id=$(./swe submit \
 #submit a job that run 
 #run variant quality recalibration
 # output: $vqsr_job_id:recalibrated.filtered.vcf.gz
-vqsr_job_id=$(./swe submit \
+vqsr_job_id=$(./swe submit  $common_params \
 		    -d $combine_vcf_job_id \
 		    -u vqsr/vqsr.sh \
 		    -igatk_jar=$GATK_JAR \
