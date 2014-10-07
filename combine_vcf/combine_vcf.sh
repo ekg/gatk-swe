@@ -31,8 +31,8 @@ first_vcf=$1
 cat $(./swe fetch $first_vcf) |grep -P '^\#' >header.vcf
 
 
-cat header.vcf > raw.vcf
-cat raw.vcf.tmp | grep -vP "^\#" | ./vcf-sort -c >> raw.vcf
+( cat header.vcf
+  cat raw.vcf.tmp | grep -vP "^\#" | ./vcf-sort -c ) | vcfuniq > raw.vcf
 
 bgzip -f raw.vcf 
 tabix -p vcf raw.vcf.gz

@@ -17,7 +17,7 @@ cpu_cores=32
 
 samtools index $input #fix me
 
-tabix -h $gatk_data/dbsnp_137.hg19.vcf.gz $chr:1-300000000 > interval.dbsnp_137.hg19.vcf
+tabix -h $gatk_data/dbsnp_137.hg19.vcf.gz $chr > interval.dbsnp_137.hg19.vcf
 java -Xmx6g -jar $gatk_jar \
     -T BaseRecalibrator \
     -I $input \

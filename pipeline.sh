@@ -44,7 +44,7 @@ else
 fi
 
 
-common_params="$common_params -j 1"
+#common_params="$common_params -j 1"
 #if a GATK 3.0 jar is specified - use it. Otherwise fall back to GATK_Lita
 #upload GATK_JAR
 if [ "$GATK_JAR" != "" ]
@@ -165,7 +165,7 @@ do
 	#submit comine jobs, and pass list of alignent files as input, and all alignment jobs as prerequsite
 	#combine.sh: accepts a list of aligned bam files, produced combined file for a given chromsome
 	# output: $combine_job_id:$chr.bam
-	combine_job_id=$(./swe submit  $common_params \
+ 	combine_job_id=$(./swe submit  $common_params \
 							-d $align_job_list \
 							-ichr=$chr \
 							-iinput="$input_array" \
@@ -175,20 +175,21 @@ do
 							--wrap="bash combine.sh" )
 
 	#for one of the chromosomes submit BQSR job to produce Base Quality Recalibration files
-	if [ "$chr" == "$BQSR_CHR" ]
-	then
+	#if [ "$chr" == "$BQSR_CHR" ]
+    #if [ false ]q
+    #then
 		#bqsr.sh: runs Base Quality recalibration on chr22
 		# output is $bqsr_job_id:bqsr.grp
-		bqsr_job_id=$(./swe submit  $common_params \
-						     -d $combine_job_id \
-						     -iinput=$combine_job_id:$chr.bam \
-						     -t NAME=$NAME_PREFIX:bqsr:$chr -t STAGE=bqsr \
-						     -u bqsr/bqsr.sh \
-						     -ichr=$chr \
-						     -igatk_jar=$GATK_JAR \
-						     --wrap="bash bqsr.sh")
-
-	fi
+	#	bqsr_job_id=$(./swe submit  $common_params \
+	#					     -d $combine_job_id \
+	#					     -iinput=$combine_job_id:$chr.bam \
+	#					     -t NAME=$NAME_PREFIX:bqsr:$chr -t STAGE=bqsr \
+	#					     -u bqsr/bqsr.sh \
+	#					     -ichr=$chr \
+	#					     -igatk_jar=$GATK_JAR \
+	#					     --wrap="bash bqsr.sh")
+#
+#	fi
 	
 	# for each combined chromosomes, run split_chr.sh to obtain list of 
 	#chr_split.sh: finds genomic locations where it is safe to split a chromosomes
@@ -212,36 +213,46 @@ do
 
 		#gatk.sh runs gatk on a sub-interval and applies BQSR
 		# output: $gatk_job_id:raw.vcf
-		gatk_job_id=$(./swe submit  $common_params \
-							-d $chr_split_id,$bqsr_job_id \
-							-iinput=$chr_split_id:$split_id.bam \
-							-iinterval=$chr_split_id:$split_id.interval \
-							-ibqsr=$bqsr_job_id:bqsr.grp \
-							-t NAME=$NAME_PREFIX:gatk:$chr:$split_id -t STAGE=gatk \
-							-u gatk/gatk.sh \
-							-igatk_jar=$GATK_JAR \
-							-u gatk/MarkDuplicates.jar \
-							--wrap="bash gatk.sh")
-	[ "$swe_wait" == "" ] || ./swe wait $gatk_job_id
+		#gatk_job_id=$(./swe submit  $common_params \
+		#					-d $chr_split_id,$bqsr_job_id \
+		#					-iinput=$chr_split_id:$split_id.bam \
+		#					-iinterval=$chr_split_id:$split_id.interval \
+		#					-ibqsr=$bqsr_job_id:bqsr.grp \
+		#					-t NAME=$NAME_PREFIX:gatk:$chr:$split_id -t STAGE=gatk \
+		#					-u gatk/gatk.sh \
+		#					-igatk_jar=$GATK_JAR \
+		#					-u gatk/MarkDuplicates.jar \
+		#					--wrap="bash gatk.sh")
 
-		gatk_job_ids="$gatk_job_ids $gatk_job_id"
+        caller_job_id=$(./swe submit $common_params \
+            -d $chr_split_id \
+            -iinput=$chr_split_id:$split_id.bam \
+            -iinterval=$chr_split_id:$split_id.interval \
+            -t NAME=$NAME_PREFIX:freebayes:$chr:$split_id -t STAGE=freebayes \
+            -u freebayes/freebayes.sh \
+            --wrap="bash freebayes.sh")
+
+
+	[ "$swe_wait" == "" ] || ./swe wait $caller_job_id
+
+		caller_job_ids="$caller_job_ids $caller_job_id"
 		
 	done
 done
 
 # collect all GATK job ids, and create comma separated list for dependendencies (-d)
-gatk_job_list=$(echo $gatk_job_ids |tr " " ",")
+caller_job_list=$(echo $caller_job_ids |tr " " ",")
 
 input_array=""
-for gatk_job in $gatk_job_ids
+for caller_job in $caller_job_ids
 do
-    input_array="$input_array $gatk_job:raw.vcf"
+    input_array="$input_array $caller_job:raw.vcf"
 done
 
 #submit a job that combines all sub-region vcf files, into one sorted VCF
 #combine_vcf.sh concatenate sub-region VCFs into final VCF
 combine_vcf_job_id=$(./swe submit  $common_params \
-			    -d $gatk_job_list \
+			    -d $caller_job_list \
 			    -iinput="$input_array" \
 			    -t NAME=$NAME_PREFIX:combine_vcf -t STAGE=combine_vcf \
 			    -u combine_vcf/vcf-sort \
@@ -251,17 +262,17 @@ combine_vcf_job_id=$(./swe submit  $common_params \
 #submit a job that run 
 #run variant quality recalibration
 # output: $vqsr_job_id:recalibrated.filtered.vcf.gz
-vqsr_job_id=$(./swe submit  $common_params \
-		    -d $combine_vcf_job_id \
-		    -u vqsr/vqsr.sh \
-		    -igatk_jar=$GATK_JAR \
-		    -t NAME=$NAME_PREFIX:vqsr -t STAGE=vqsr \
-		    -iinput=$combine_vcf_job_id:raw.vcf.gz \
-		    --wrap=" bash vqsr.sh")
+#vqsr_job_id=$(./swe submit  $common_params \
+#		    -d $combine_vcf_job_id \
+#		    -u vqsr/vqsr.sh \
+#		    -igatk_jar=$GATK_JAR \
+#		    -t NAME=$NAME_PREFIX:vqsr -t STAGE=vqsr \
+#		    -iinput=$combine_vcf_job_id:raw.vcf.gz \
+#		    --wrap=" bash vqsr.sh")
 
 #wait for all jobs to finish
-./swe wait  $vqsr_job_id
-./swe fetch $vqsr_job_id:recalibrated.filtered.vcf.gz
+./swe wait  $combine_vcf_job_id
+./swe fetch $combine_vcf_job_id:raw.vcf.gz
 
 exit 0
 

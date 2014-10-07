@@ -26,7 +26,11 @@ else
 	local_bams="$local_bams $local_bam"
     done
 
-    samtools merge -@ $cpu_cores $chr.bam $local_bams
+    # run merge and streaming duplicate marking
+    samtools merge -@ $cpu_cores - $local_bams \
+        | samtools view -h - \
+        | samblaster \
+        | sambamba view -S -f bam -l 0 /dev/stdin -o $chr.bam
     samtools index $chr.bam
 fi
 
