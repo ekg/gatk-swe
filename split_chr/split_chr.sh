@@ -12,8 +12,7 @@ cpu_cores=32
 samtools index $input #fix it 
 ./equally_spaced_intervals.pl --bam $input --blocks $splits --chr $chr > es_intervals.txt
 
-parallel -j $cpu_cores -i bash -c "./advanced_splitter.pl --reference $gatk_data/hg19/ucsc.hg19.fasta --bam $input --region {} > {}.breakpoints" -- `cat es_intervals.txt`
-
+cat es_intervals.txt | parallel -j $cpu_cores "./advanced_splitter.pl --reference $gatk_data/hg19/ucsc.hg19.fasta --bam $input --region {} > {}.breakpoints"
 
 [ ! -e breakpoints.lst ] || rm breakpoints.lst
 

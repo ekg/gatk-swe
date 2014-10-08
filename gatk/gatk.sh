@@ -5,7 +5,7 @@ set -o pipefail
 
 input=$(./swe get input | ./swe fetch -)
 gatk_jar=$(./swe get gatk_jar | ./swe fetch -)
-bqsr=$(./swe get bqsr | ./swe fetch -)
+#bqsr=$(./swe get bqsr | ./swe fetch -)
 interval_file=$(./swe get interval|./swe fetch -)
 interval=$(cat $interval_file)
 gatk_data=$(./swe get GATK_DATA)
@@ -15,12 +15,10 @@ tabix -h $gatk_data/Mills_and_1000G_gold_standard.indels.hg19.vcf.gz $interval >
 tabix -h $gatk_data/1000G_phase1.indels.hg19.vcf.gz $interval                  > VCF2.vcf
 tabix -h $gatk_data/dbsnp_137.hg19.vcf.gz $interval         > interval.dbsnp_137.hg19.vcf
 
-
-java -Xmx2g -jar ./MarkDuplicates.jar INPUT=$input  OUTPUT=deduplicated.bam REMOVE_DUPLICATES=true METRICS_FILE=duplication.metrics
-samtools index deduplicated.bam
+samtools index $input
 
 java -Xmx2g -jar $gatk_jar \
-    -I deduplicated.bam \
+    -I $input \
     -R $gatk_data/hg19/ucsc.hg19.fasta \
     -T RealignerTargetCreator \
     -o realigned.intervals \
@@ -29,7 +27,7 @@ java -Xmx2g -jar $gatk_jar \
     -L $interval 
 
 java -Xmx2g -jar $gatk_jar \
-    -I deduplicated.bam \
+    -I $input \
     -R $gatk_data/hg19/ucsc.hg19.fasta \
     -T IndelRealigner \
     -targetIntervals realigned.intervals \
@@ -42,21 +40,25 @@ java -Xmx2g -jar $gatk_jar \
     --downsample_to_coverage 250 \
     -compress 0
 
-java -Xmx2g -jar $gatk_jar \
-    -R $gatk_data/hg19/ucsc.hg19.fasta \
-    -I realigned.bam  \
-    -T PrintReads  \
-    -o recalibrated.bam  \
-    --disable_indel_quals  \
-    -BQSR $bqsr \
-    -compress 0
+# drop BQSR
+
+#java -Xmx2g -jar $gatk_jar \
+#    -R $gatk_data/hg19/ucsc.hg19.fasta \
+#    -I realigned.bam  \
+#    -T PrintReads  \
+#    -o recalibrated.bam  \
+#    --disable_indel_quals  \
+#    -BQSR $bqsr \
+#    -compress 0
+
+# note that for GATK-UG we use the realigned bam, whereas for GATK-HC we use the raw input
 
 if [[ $gatk_jar =~ GenomeAnalysisTKLite ]] ;
 then
     java -Xmx6g -jar $gatk_jar \
         -R $gatk_data/hg19/ucsc.hg19.fasta \
         -T UnifiedGenotyper \
-        -I recalibrated.bam \
+        -I realigned.bam \
         --dbsnp interval.dbsnp_137.hg19.vcf \
         -o raw.vcf \
         -glm BOTH \
@@ -70,7 +72,7 @@ else
     java -Xmx6g -jar $gatk_jar \
         -R $gatk_data/hg19/ucsc.hg19.fasta \
         -T HaplotypeCaller \
-        -I recalibrated.bam \
+        -I $input \
         --dbsnp interval.dbsnp_137.hg19.vcf \
         -stand_call_conf 30.0 \
         -stand_emit_conf 30.0 \
@@ -82,7 +84,7 @@ else
     java -Xmx6g -jar $gatk_jar \
         -R $gatk_data/hg19/ucsc.hg19.fasta \
         -T VariantAnnotator \
-        -I recalibrated.bam \
+        -I $input \
         --variant raw.hc.vcf \
         -A MappingQualityZero \
         --dbsnp interval.dbsnp_137.hg19.vcf \

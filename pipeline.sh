@@ -19,8 +19,6 @@ export SHELL=/bin/bash
 
 
 
-#chromosomes should start with BQSR_CHROMOSOME
-BQSR_CHR=chr22
 [ "$CHROMOSOMES" != "" ] || export CHROMOSOMES="chr22 chr21 chr20 chr19 chr18 chr17 chr16 chr15 chr14 chr13 chr12 chr11 chr10 chr9 chr8 chr7 chr6 chr5 chr4 chr3 chr2 chr1 chrY chrX"
 
 
@@ -75,10 +73,14 @@ NAME_PREFIX="$NAME:$K_ANALYSIS";
 #approximate size of input splits in bytes. 500MB 
 input_split_size=500000000
 
+# also, you can just use a number of line
+#input_split_lines=8000000
+
 #list of alignment job IDs
 align_job_ids=""
 for input in $INPUT_FASTQ
 do
+    echo $input
 	#check input string format
 	#compute number of alignment splits. one split per GB of input data.
 	if [[ $input =~ paired\[(.*),(.*)\] ]] ;
@@ -106,13 +108,17 @@ do
 	split_job_id=$(./swe submit $common_params \
 						 -u split_fastq/split.sh \
 						 -u split_fastq/split_input_fastq.pl \
-						 -t NAME=$NAME_PREFIX:interleave -t STAGE=interleave\
+						 -t NAME=$NAME_PREFIX:split -t STAGE=split \
 						 -isplits=$splits \
 						 -iinput1=$file1 \
 						 -iinput2=$file2 \
 						 -c 16 \
 						 --wrap="bash split.sh")
-	
+
+    # count the splits we've made
+    #./swe wait $split_job_id
+    #cat $(./swe fetch $split_job_id:splits.txt)
+
 	#align each split, reference them via $split_job_id
 
 	for split in $(seq 1 $splits)
@@ -140,7 +146,7 @@ done
 #
 
 # number of splits per chromosomes
-gatk_splits=10
+region_splits=10
 #combine per chromosomes
 
 
@@ -149,8 +155,8 @@ do
 	#get chromosome size and compute optimal number of splits
 	
 	chr_size=$(grep "^$chr	" $GENOME_FAI |cut -f 2)
-	gatk_splits=$[$chr_size/5000000]
-	[ "$gatk_splits" != "0" ]
+	region_splits=$[$chr_size/5000000]
+	[ "$region_splits" != "0" ]
 
 	#create comma separated list of alignment jobs
 	align_job_list=$(echo $align_job_ids |tr " " ",")
@@ -166,13 +172,14 @@ do
 	#combine.sh: accepts a list of aligned bam files, produced combined file for a given chromsome
 	# output: $combine_job_id:$chr.bam
  	combine_job_id=$(./swe submit  $common_params \
-							-d $align_job_list \
-							-ichr=$chr \
-							-iinput="$input_array" \
-							-u combine/combine.sh \
-							-c 8 \
-							-t NAME=$NAME_PREFIX:combine:$chr -t STAGE=combine \
-							--wrap="bash combine.sh" )
+		-d $align_job_list \
+		-ichr=$chr \
+		-iinput="$input_array" \
+		-u combine/combine.sh \
+        -u gatk/MarkDuplicates.jar \
+		-c 8 \
+		-t NAME=$NAME_PREFIX:combine:$chr -t STAGE=combine \
+		--wrap="bash combine.sh" )
 
 	#for one of the chromosomes submit BQSR job to produce Base Quality Recalibration files
 	#if [ "$chr" == "$BQSR_CHR" ]
@@ -195,36 +202,37 @@ do
 	#chr_split.sh: finds genomic locations where it is safe to split a chromosomes
 	#               returns list of bam files:  split.$chr.$split_id.bam
 	chr_split_id=$(./swe submit  $common_params \
-						  -d $combine_job_id \
-						  -iinput=$combine_job_id:$chr.bam \
-						  -isplits=$gatk_splits \
-						  -ichr=$chr \
-						  -t NAME=$NAME_PREFIX:chr_split:$chr -t STAGE=chr_split \
-						  -u split_chr/split_chr.sh \
-						  -c 8 \
-						  -u split_chr/advanced_splitter.pl \
-						  -u split_chr/breakpoints2intervals.pl \
-						  -u split_chr/equally_spaced_intervals.pl \
-						  --wrap="bash split_chr.sh")
+		-d $combine_job_id \
+		-iinput=$combine_job_id:$chr.bam \
+		-isplits=$region_splits \
+		-ichr=$chr \
+		-t NAME=$NAME_PREFIX:chr_split:$chr -t STAGE=chr_split \
+		-u split_chr/split_chr.sh \
+		-c 8 \
+		-u split_chr/advanced_splitter.pl \
+		-u split_chr/breakpoints2intervals.pl \
+		-u split_chr/equally_spaced_intervals.pl \
+		--wrap="bash split_chr.sh")
 
-	#for each chromosome split, start a GATK analysis job
-	for split_id in $(seq 1 $gatk_splits)
+	#for each chromosome split, start an analysis job from each caller
+    
+	for split_id in $(seq 1 $region_splits)
 	do
 
 		#gatk.sh runs gatk on a sub-interval and applies BQSR
 		# output: $gatk_job_id:raw.vcf
-		#gatk_job_id=$(./swe submit  $common_params \
 		#					-d $chr_split_id,$bqsr_job_id \
-		#					-iinput=$chr_split_id:$split_id.bam \
-		#					-iinterval=$chr_split_id:$split_id.interval \
-		#					-ibqsr=$bqsr_job_id:bqsr.grp \
-		#					-t NAME=$NAME_PREFIX:gatk:$chr:$split_id -t STAGE=gatk \
-		#					-u gatk/gatk.sh \
-		#					-igatk_jar=$GATK_JAR \
-		#					-u gatk/MarkDuplicates.jar \
-		#					--wrap="bash gatk.sh")
+		
+        gatk_job_id=$(./swe submit  $common_params \
+            -d $chr_split_id \
+		    -iinput=$chr_split_id:$split_id.bam \
+		    -iinterval=$chr_split_id:$split_id.interval \
+		    -t NAME=$NAME_PREFIX:gatk:$chr:$split_id -t STAGE=gatk \
+	        -u gatk/gatk.sh \
+		    -igatk_jar=$GATK_JAR \
+		    --wrap="bash gatk.sh")
 
-        caller_job_id=$(./swe submit $common_params \
+        freebayes_job_id=$(./swe submit $common_params \
             -d $chr_split_id \
             -iinput=$chr_split_id:$split_id.bam \
             -iinterval=$chr_split_id:$split_id.interval \
@@ -232,15 +240,23 @@ do
             -u freebayes/freebayes.sh \
             --wrap="bash freebayes.sh")
 
+        platypus_job_id=$(./swe submit $common_params \
+            -d $chr_split_id \
+            -iinput=$chr_split_id:$split_id.bam \
+            -iinterval=$chr_split_id:$split_id.interval \
+            -t NAME=$NAME_PREFIX:platypus:$chr:$split_id -t STAGE=platypus \
+            -u platypus/platypus.sh \
+            --wrap="bash platypus.sh")
 
-	[ "$swe_wait" == "" ] || ./swe wait $caller_job_id
 
-		caller_job_ids="$caller_job_ids $caller_job_id"
+	    #[ "$swe_wait" == "" ] || ./swe wait $caller_job_id
+
+		caller_job_ids="$caller_job_ids $gatk_job_id $freebayes_job_id $platypus_job_id"
 		
 	done
 done
 
-# collect all GATK job ids, and create comma separated list for dependendencies (-d)
+# collect all caller job ids, and create comma separated list for dependendencies (-d)
 caller_job_list=$(echo $caller_job_ids |tr " " ",")
 
 input_array=""
@@ -255,7 +271,52 @@ combine_vcf_job_id=$(./swe submit  $common_params \
 			    -d $caller_job_list \
 			    -iinput="$input_array" \
 			    -t NAME=$NAME_PREFIX:combine_vcf -t STAGE=combine_vcf \
-			    -u combine_vcf/vcf-sort \
+			    -u combine_vcf/combine_vcf.sh \
+			    --wrap="bash combine_vcf.sh" )
+
+
+for chr in $CHROMOSOMES
+do
+	
+	chr_size=$(grep "^$chr	" $GENOME_FAI |cut -f 2)
+	region_splits=$[$chr_size/5000000]
+	[ "$region_splits" != "0" ]
+
+	#for each chromosome split, start an analysis job from each caller
+    
+	for split_id in $(seq 1 $region_splits)
+	do
+
+		#gatk.sh runs gatk on a sub-interval and applies BQSR
+		# output: $gatk_job_id:raw.vcf
+		#					-d $chr_split_id,$bqsr_job_id \
+		
+        glia_job_id=$(./swe submit $common_params \
+            -d $combine_vcf_job_id \
+            -iinput=$chr_split_id:$split_id.bam \
+            -iinterval=$chr_split_id:$split_id.interval \
+            -icandidates=$combine_vcf_job_id:raw.vcf.gz \
+            -t NAME=$NAME_PREFIX:glia:$chr:$split_id -t STAGE=glia \
+            -u glia/glia.sh \
+            --wrap="bash glia.sh")
+
+		gl_job_ids="$gl_job_ids $glia_job_id"
+		
+	done
+done
+
+gl_job_list=$(echo $gl_job_ids |tr " " ",")
+
+input_array=""
+for gl_job in $gl_job_ids
+do
+    input_array="$input_array $gl_job:raw.vcf"
+done
+
+combine_final_vcf_job_id=$(./swe submit  $common_params \
+			    -d $gl_job_list \
+			    -iinput="$input_array" \
+			    -t NAME=$NAME_PREFIX:combine_vcf -t STAGE=combine_vcf \
 			    -u combine_vcf/combine_vcf.sh \
 			    --wrap="bash combine_vcf.sh" )
 
@@ -271,8 +332,8 @@ combine_vcf_job_id=$(./swe submit  $common_params \
 #		    --wrap=" bash vqsr.sh")
 
 #wait for all jobs to finish
-./swe wait  $combine_vcf_job_id
-./swe fetch $combine_vcf_job_id:raw.vcf.gz
+./swe wait  $combine_final_vcf_job_id
+./swe fetch $combine_final_vcf_job_id:raw.vcf.gz
 
 exit 0
 

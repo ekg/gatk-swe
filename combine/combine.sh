@@ -22,16 +22,16 @@ else
     local_bams=""
     for bam in $input
     do
-	local_bam=$(./swe fetch $bam)
-	local_bams="$local_bams $local_bam"
+	    local_bam=$(./swe fetch $bam)
+	    local_bams="$local_bams $local_bam"
     done
 
     # run merge and streaming duplicate marking
-    samtools merge -@ $cpu_cores - $local_bams \
-        | samtools view -h - \
-        | samblaster \
-        | sambamba view -S -f bam -l 0 /dev/stdin -o $chr.bam
+    samtools merge -@ $cpu_cores $chr.dups.bam $local_bams
+    samtools index $chr.dups.bam
+    java -Xmx2g -jar ./MarkDuplicates.jar INPUT=$chr.dups.bam OUTPUT=$chr.bam REMOVE_DUPLICATES=true METRICS_FILE=duplication.metrics
     samtools index $chr.bam
+
 fi
 
     ./swe emit file $chr.bam

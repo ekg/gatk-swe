@@ -4,24 +4,24 @@ set -x
 set -o pipefail
 
 input=$(./swe get input)
+gatk_data=$(./swe get GATK_DATA)
 
 [ ! -e raw.vcf.tmp ] || rm raw.vcf.tmp
 
 run_in_parallel=1
 
 # cat all input VCFs into raw.vcf.tmp
-if [ "$run_in_parallel" != "" ]
-then
+#if [ "$run_in_parallel" != "" ]
+#then
     # save input files into input.XXXX.vcf in parallel
-    parallel -j 10 -i bash -c "mv \`./swe fetch {}\` input.\$\$.vcf " -- $input
-
-    cat input.*.vcf > raw.vcf.tmp
-else
+#    echo $input | parallel -j 10 'mv $(./swe fetch {}) input.$$.vcf '
+#    cat input.*.vcf > raw.vcf.tmp
+#else
     for vcf in $input
     do
-	cat $(./swe fetch $vcf) >> raw.vcf.tmp
+	    cat $(./swe fetch $vcf) >> raw.vcf.tmp
     done
-fi
+#fi
 
 
 #obtain header from the first VCF in the list
@@ -32,7 +32,11 @@ cat $(./swe fetch $first_vcf) |grep -P '^\#' >header.vcf
 
 
 ( cat header.vcf
-  cat raw.vcf.tmp | grep -vP "^\#" | ./vcf-sort -c ) | vcfuniq > raw.vcf
+  cat raw.vcf.tmp | grep -vP "^\#" ) \
+      | vcfallelicprimitives --keep-info --keep-geno \
+      | vt normalize -r $gatk_data/hg19/ucsc.hg19.fasta - \
+      | vcf-sort -c \
+      | vcfuniq > raw.vcf
 
 bgzip -f raw.vcf 
 tabix -p vcf raw.vcf.gz
