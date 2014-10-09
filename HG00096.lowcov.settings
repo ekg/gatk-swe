@@ -5,5 +5,6 @@ NAME=HG00096
 K_ANALYSIS=wgs
 #CHROMOSOMES=chr22
 #SWE_ENGINE=local
-#GATK_JAR=~/GenomeAnalysisTK.jar
+GATK_LITE_JAR=~/GenomeAnalysisTKLite.jar
+GATK_FULL_JAR=~/GenomeAnalysisTK.jar
 INPUT_FASTQ="paired[s3://gapp-east/1000G/SRR062634_1.filt.fastq.gz,s3://gapp-east/1000G/SRR062634_2.filt.fastq.gz] paired[s3://gapp-east/1000G/SRR062635_1.filt.fastq.gz,s3://gapp-east/1000G/SRR062635_2.filt.fastq.gz] paired[s3://gapp-east/1000G/SRR062641_1.filt.fastq.gz,s3://gapp-east/1000G/SRR062641_2.filt.fastq.gz]"

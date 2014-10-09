@@ -45,16 +45,18 @@ fi
 #common_params="$common_params -j 1"
 #if a GATK 3.0 jar is specified - use it. Otherwise fall back to GATK_Lita
 #upload GATK_JAR
-if [ "$GATK_JAR" != "" ]
+if [ "$GATK_FULL_JAR" != "" ]
 then
-GATK_JAR=$(./swe store $GATK_JAR)
-else
+    GATK_FULL_JAR=$(./swe store ./GenomeAnalysisTK.jar)
+fi
+if [ "$GATK_LITE_JAR" != "" ]
+then
     # if HTTP link for 3.0 is not provided fall back on free GATK_Lite
-GATK_JAR=$(./swe store ./GenomeAnalysisTKLite.jar)
+    GATK_LITE_JAR=$(./swe store ./GenomeAnalysisTKLite.jar)
 fi
 
 
-[ "$GATK_JAR" != "" ] #GATK_JAR must be defined
+[ "$GATK_LITE_JAR" != "" ] #GATK_JAR must be defined
 [ -e bin.tar.gz ] || tar czvf bin.tar.gz ./bin
 
 NAME_PREFIX="$NAME:$K_ANALYSIS";
@@ -176,7 +178,7 @@ do
 		-ichr=$chr \
 		-iinput="$input_array" \
 		-u combine/combine.sh \
-        -u gatk/MarkDuplicates.jar \
+        -u MarkDuplicates.jar \
 		-c 8 \
 		-t NAME=$NAME_PREFIX:combine:$chr -t STAGE=combine \
 		--wrap="bash combine.sh" )
@@ -223,14 +225,23 @@ do
 		# output: $gatk_job_id:raw.vcf
 		#					-d $chr_split_id,$bqsr_job_id \
 		
-        gatk_job_id=$(./swe submit  $common_params \
+        gatk_ug_job_id=$(./swe submit  $common_params \
             -d $chr_split_id \
 		    -iinput=$chr_split_id:$split_id.bam \
 		    -iinterval=$chr_split_id:$split_id.interval \
-		    -t NAME=$NAME_PREFIX:gatk:$chr:$split_id -t STAGE=gatk \
-	        -u gatk/gatk.sh \
-		    -igatk_jar=$GATK_JAR \
-		    --wrap="bash gatk.sh")
+		    -t NAME=$NAME_PREFIX:gatk-ug:$chr:$split_id -t STAGE=gatk-ug \
+	        -u gatk-ug/gatk-ug.sh \
+		    -igatk_jar=$GATK_LITE_JAR \
+		    --wrap="bash gatk-ug.sh")
+
+        gatk_hc_job_id=$(./swe submit  $common_params \
+            -d $chr_split_id \
+		    -iinput=$chr_split_id:$split_id.bam \
+		    -iinterval=$chr_split_id:$split_id.interval \
+		    -t NAME=$NAME_PREFIX:gatk-hc:$chr:$split_id -t STAGE=gatk-hc \
+	        -u gatk-hc/gatk-hc.sh \
+		    -igatk_jar=$GATK_FULL_JAR \
+		    --wrap="bash gatk-hc.sh")
 
         freebayes_job_id=$(./swe submit $common_params \
             -d $chr_split_id \
@@ -251,7 +262,7 @@ do
 
 	    #[ "$swe_wait" == "" ] || ./swe wait $caller_job_id
 
-		caller_job_ids="$caller_job_ids $gatk_job_id $freebayes_job_id $platypus_job_id"
+		caller_job_ids="$caller_job_ids $gatk_ug_job_id $gatk_hc_job_id $freebayes_job_id $platypus_job_id"
 		
 	done
 done
