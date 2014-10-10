@@ -3,10 +3,11 @@ set -e
 set -x
 set -o pipefail
 
-input=$(./swe get input | ./swe fetch -)
-splits=$(./swe get splits)
-chr=$(./swe get chr)
-gatk_data=$(./swe get GATK_DATA)
+[ "$input"  != "" ] && input=$(./swe fetch $input)
+[ "$splits" != "" ]
+[ "$chr" != "" ]
+[ "$GATK_REFERENCE" != "" ] && gatk_data=$(./swe dc $GATK_REFERENCE)
+
 cpu_cores=32
 
 samtools index $input #fix it 
