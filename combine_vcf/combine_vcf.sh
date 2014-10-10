@@ -3,8 +3,8 @@ set -e
 set -x
 set -o pipefail
 
-input=$(./swe get input)
-gatk_data=$(./swe get GATK_DATA)
+[ "$input" != "" ]
+[ "$GATK_REFERENCE" != "" ] && gatk_data=$(./swe dc $GATK_REFERENCE)
 
 [ ! -e raw.vcf.tmp ] || rm raw.vcf.tmp
 
@@ -14,13 +14,13 @@ run_in_parallel=1
 #if [ "$run_in_parallel" != "" ]
 #then
     # save input files into input.XXXX.vcf in parallel
-#    echo $input | parallel -j 10 'mv $(./swe fetch {}) input.$$.vcf '
+echo $input | tr ' ' '\n' | parallel -j 16 'cat $(./swe fetch {})' >raw.vcf.tmp
 #    cat input.*.vcf > raw.vcf.tmp
 #else
-    for vcf in $input
-    do
-	    cat $(./swe fetch $vcf) >> raw.vcf.tmp
-    done
+#    for vcf in $input
+#    do
+#	    cat $(./swe fetch $vcf) >> raw.vcf.tmp
+#    done
 #fi
 
 

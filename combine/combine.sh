@@ -3,10 +3,10 @@ set -e
 set -x
 set -o pipefail
 
-input=$(./swe get input)
-chr=$(./swe get chr)
-cpu_cores=32
+[ "$input" != "" ]
+[ "$chr" != "" ]
 
+cpu_cores=32
 
 # compute number of input files
 words=( $input )

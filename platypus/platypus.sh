@@ -3,10 +3,11 @@ set -e
 set -x
 set -o pipefail
 
-input=$(./swe get input | ./swe fetch -)
-interval_file=$(./swe get interval|./swe fetch -)
-interval=$(cat $interval_file)
-gatk_data=$(./swe get GATK_DATA)
+[ "$input"     != "" ] && input=$(./swe fetch $input)
+[ "$gatk_jar"  != "" ] && gatk_jar=$(./swe fetch $gatk_jar)
+[ "$interval"  != "" ] && interval_file=$(./swe fetch $interval)
+[ "$GATK_REFERENCE" != "" ] && gatk_data=$(./swe dc $GATK_REFERENCE)
+
 cpu_cores=32
 
 samtools index $input
