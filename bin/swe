@@ -62,201 +62,62 @@ else
 my $i;
 
 
-if ($command eq "submit")
+if ($command eq "dc" )
 {
-    #parse command line to find inputs of the form -iname=value
-    #save them in envoriment variable K_name=value, we can later retrieve them using swe get 
+    my $username=`whoami`;
+    chomp $username;
+    my $path=$ARGV[1];
+    die "path $path doesn't exist " if system("es3 test $path");
 
-    # if EXTRA ARGS are present add them to the beginning of the arguments
-    #splice(@ARGV,1,0,@new_ARGV);
-    
+    die unless $path =~/^(s3\S+\/)([^\/]*)/;
+    my $dirname=$1;
+    my $filename=$2;
 
+    my $local_path=$dirname;
+    $local_path=~s/[\W]/_/g;
+    $local_path.=$username;
+    $local_path="/tmp/download-cached-".$local_path;
 
-    my  $cmd_identifier=md5_hex(join(" ",@ARGV));
+    #start by requesting the lock
+    open(FL,">$local_path.lock")||die "unable to open lock file";
+    flock(FL,2)||die "Flock failed";
 
-    for ($i=1; (($i<scalar(@ARGV)) and ($ARGV[$i] !~ "^--wrap"));$i++)
+    #obtained lock lets create directory first
+
+    unless ( -e $local_path )
     {
-        if ($ARGV[$i] =~/^\-i(\S+)=(.*)$/) 
-        {
-                print STDERR "Processing input variable $1=$2\n" if $verbose;
-                $ENV{"K_$1"}=$2 ; 
-                $ARGV[$i]="";
-        };
+	die if system("mkdir $local_path");
     }
 
-    #upload a current version of SWE
-    push(@ARGV,"-u");push(@ARGV,"$swe_path");
-
-    if ($engine eq "local")
+    my $local_name="";    
+    if ($filename) #we were asked to sync a file
     {
-        my $exe=$ARGV[1];
-
-        if ($dev_mode)
+	unless (-e "$local_path/$filename")
         {
-            run(  "mkdir -p ./.swe-progress");
-           
-            if (-e        " ./.swe-progress/$cmd_identifier")
-            {
-                system("cat ./.swe-progress/$cmd_identifier");
-                exit(0);
-            }
+    	    die if system("es3 cat $path > $local_path/$filename.tmp");
+            die if system("mv  $local_path/$filename.tmp  $local_path/$filename");
         }
-
-        #find unused task ID under $workflow_path
-        my $id;
-        for ($id=1; -e "$workflow_path/$id";$id++) {}
-        #task working directory
-        my $twd="$workflow_path/$id";
-        die "cannot create $twd" if system ("mkdir -p $twd/twd >&2");
-        #parse command line arguments
-        $ENV{CLUSTERK_TASK_ID}=$id;
-     
-
-        #parse file upload request, files can be uploaded using -u :
-        for ($i=1;$i<scalar(@ARGV);$i++)
-        {
-            if ($ARGV[$i] eq "-u") 
-            {
-                my $upload=abs_path($ARGV[$i+1]);              
-                die "$upload not found" unless -e $upload;
-                # "simulate upload"
-                run("cd $twd/twd && ln -s $upload ");
-		if ($upload =~ /tar.gz/)
-		{
-		    run("cd $twd/twd && tar xf ".basename($upload));
-		}
-            }
-        }
-
-        #parse dependencies
-        my $dep_failed=0;
-        for ($i=1;$i<scalar(@ARGV);$i++)
-        {
-            if ($ARGV[$i] eq "-d") 
-            {
-                foreach ( split(",",$ARGV[$i+1]))
-                {
-		    unless (-e "$workflow_path/$_/.success")
-		    {
-                	$dep_failed=1 ;
-                	print STDERR "depencency $_ failed\n";
-		    }
-                }              
-            }
-        }
-    
-
-	die "Failed dependencies, cannot continue" if $dep_failed;
-        my $cmdline;
-        for ($i=1;$i<scalar(@ARGV);$i++)
-        {
-	    if ($ARGV[$i] =~ /^--wrap=(.*)$/)
-	    {
-        	$cmdline ="./swe init && $1";
-	    	$ENV{K_CMDLINE}=$1;
-	    }
-    
-        }
-        die "cmd line not found, please specify it with --wrap=\"command\" " unless $cmdline;
-
-        print STDERR "will submit: $cmdline\n" if $verbose;
-        if ($dep_failed or system("cd $twd/twd && bash -c \"$cmdline\" >&2"))
-        {
-            print STDERR "____________________________ Execution failed\n" if $verbose;
-        }
-        else
-        {
-            run("touch $workflow_path/$id/.success");
-            system("echo $id > ./.swe-progress/$cmd_identifier") if $dev_mode;       
-        }
-        print "$id";
-        exit;
+        system("ln -s $local_path/$filename");
+	$local_name=$filename;
+    }
+    else
+    {
+        die if system("es3 -n 5 sync $path $local_path/");
+	die "malformed path" unless $path =~/\/([^\/]+)\/$/;
+        system("ln -s $local_path/ $1");
+	$local_name=$1;
     }
 
-
-    if ($engine eq "clusterk")
-    {
-
-        if ($dev_mode)
-        {
-            #in dev_mode only return previous task id if it succeeded
-            run("mkdir -p ./.swe-progress");
-            if (-e "./.swe-progress/$cmd_identifier")
-            {
-                my $old_id=`cat ./.swe-progress/$cmd_identifier`;
-                chomp($old_id);
-                if ( -e "./.swe-progress/$cmd_identifier.success")
-                {
-            	    print $old_id;
-            	    exit(0);
-                }
-                unless (system("kwait $old_id >/dev/null 2>/dev/null"))
-                {
-            	    system("touch ./.swe-progress/$cmd_identifier.success");
-                    print $old_id;
-                    exit (0);
-                }
-            }
-
-        }
-        my $ksub_params="";
-
-        $ksub_params.= " -q $ENV{SWE_QUEUE} " if $ENV{SWE_QUEUE};
-        
-        for ($i=1;$i<scalar(@ARGV);$i++) 
-        {
-           # die "Visual mode is not supported" if $ARGV[$i] eq "-v";   
-	    if ($ARGV[$i]=~/--wrap=(.*)$/)
-	    {
-		$ENV{K_CMDLINE}=$1;
-        	$ARGV[$i]="--wrap=\" ./swe init && $1\"" 
-	    }
-            $ksub_params.= " $ARGV[$i] ";
-        }
-
-        #die $ksub_params;
-
-        my $task_id=`ksub $ksub_params` || die "ksub $ksub_params failed";
-        chomp $task_id;
-        print "$task_id";
-        system("echo $task_id > ./.swe-progress/$cmd_identifier") if $dev_mode;
-        exit;
-    }
-
-    die;
+    close FL;
+    print $local_name;                                            
+                                                    
+exit 0;
 }
-
-
 
 
 if ($command eq "get")
 {
-    print get($ARGV[1]);
-    exit(0);
-}
-
-if ($command eq "init")
-{
-    if ($engine eq "local")
-    {
-
-    }
-    else
-    {
-        die "Some dependencies failed: $ENV{CLUSTERK_FAILED_DEPS}" if $ENV{CLUSTERK_FAILED_DEPS};
-    }
-    print "\033[36m";
-    print "SWE configuration:---------------------------------------------------\n";
-    foreach (keys %ENV)
-    {
-	if (/^K_(\S+)/)
-	{
-	    print "$1=$ENV{$_}\n";
-	} 
-    }
-    print "SWE:-----------------------------------------------------------------\033[0m\n";
-
-    exit(0);
+    die "Get not supported";
 }
 
 
@@ -354,6 +215,7 @@ sub store
 
     if ($engine eq "local")
     {
+        die;
         my $path;
         if ($taskid)
         {
@@ -406,12 +268,6 @@ sub emit
     my $taskid=get_task_id();
     my $value =~s/\n/ /g;
     die "Cannot obtain task id, when starting outside a task environment please use ./swe store" unless $taskid;
-#    if ($engine eq "local")
- #   {
-  #      open(OUT,">>$workflow_path/$taskid/output.txt")||die;
-   #     print OUT "$var\t$type\t$value\n";
-    #    close OUT;
-   # }
 }
 
 #fetch a file to local folder, return a local file name
@@ -422,7 +278,7 @@ sub fetch {
 
     if ( ($engine eq "local") and ($file !~/s3:\/\//))
     {
-
+	die;
         my $local_dir;
         my $remote_name;
         my $local_name;
@@ -500,34 +356,6 @@ sub fetch {
         }        
     }
 }
-
-# get a variable value
-sub get {
-    my $var = shift;
-    if ($var eq "-") {$var=<STDIN>; chomp($var);}
-    if ($var=~/^(\d+):(\S+)$/)
-    {
-        my $taskid=$1;
-        $var=$2;
-        open(FL,"$workflow_path/$taskid/output.txt")||die;
-        while(<FL>)
-        {
-            chomp; 
-            my ($name,$type,$value)=split("\t");
-            next unless $name eq $var;
-            die unless $type eq "variable";
-            close FL;
-            return $value;
-        }
-        die "varible $taskid:$var is not defined";
-    }
-    else
-    {
-        die "$var is not defined " unless $ENV{"K_".$var};
-        return $ENV{"K_".$var};
-    }
-}   
-
 
 
 die "Unsupported command";

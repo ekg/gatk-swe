@@ -8,6 +8,8 @@ set -o pipefail
 
 #INPUT_FASTQ=paired[s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_1.fastq.gz,s3://gapp-west/test@clusterk.com/sample_exome/025_Bioplanet_GCAT_30x/gcat_set_025_2.fastq.gz]
 
+export GATK_REFERENCE=s3://gapp-east/gatk-reference/
+export ANALYSIS=$K_ANALYSIS
 export PATH=$PATH:./bin
 export SHELL=/bin/bash
 

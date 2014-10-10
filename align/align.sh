@@ -3,12 +3,16 @@ set -e
 set -x
 set -o pipefail
 
-input=$(./swe get input | ./swe fetch -)
-sample=$(./swe get sample_id)
-gatk_data=$(./swe get GATK_DATA)
-cpu_cores=32
-GROUP_ID="@RG\tID:1\tPL:ILLUMINA\tPU:pu\tLB:group1\tSM:Sample_XXX"
+[ "$input" != "" ] # input must be defined
+input=$(./swe fetch $input)
 
+[ "$sample_id" != "" ] # sample_id must be defined
+
+[ "$GATK_REFERENCE" != "" ] && gatk_data=$(./swe dc $GATK_REFERENCE)
+
+
+cpu_cores=32
+GROUP_ID="@RG\tID:1\tPL:ILLUMINA\tPU:pu\tLB:group1\tSM:$sample_id"
 
 #samtools sort is limited to 62M per thread, so that it won't take more than 2GB total
 bwa mem -M -p -t $cpu_cores -R "$GROUP_ID" $gatk_data/hg19/ucsc.hg19.fasta $input \
