@@ -8,6 +8,7 @@ set -o pipefail
 [ "$interval"  != "" ] && interval_file=$(./swe fetch $interval)
 [ "$GATK_REFERENCE" != "" ] && gatk_data=$(./swe dc $GATK_REFERENCE)
 
+interval=$(cat $interval_file)
 cpu_cores=32
 
 samtools index $input

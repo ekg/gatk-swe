@@ -8,6 +8,7 @@ set -o pipefail
 [ "$interval"  != "" ] && interval_file=$(./swe fetch $interval)
 [ "$GATK_REFERENCE" != "" ] && gatk_data=$(./swe dc $GATK_REFERENCE)
 
+interval=$(cat $interval_file)
 cpu_cores=32
 
 tabix -h $gatk_data/Mills_and_1000G_gold_standard.indels.hg19.vcf.gz $interval > VCF1.vcf

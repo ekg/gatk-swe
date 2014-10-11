@@ -7,6 +7,7 @@ set -o pipefail
 [ "$interval"  != "" ] && interval_file=$(./swe fetch $interval)
 [ "$GATK_REFERENCE" != "" ] && gatk_data=$(./swe dc $GATK_REFERENCE)
 
+interval=$(cat $interval_file)
 cpu_cores=32
 
 freebayes -f $gatk_data/hg19/ucsc.hg19.fasta $input > raw.vcf
